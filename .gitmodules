@@ -1,9 +1,0 @@
-[submodule "project/jni/application/NewRAW"]
-	path = project/jni/application/NewRAW
-	url = https://github.com/usineur/android-newraw.git
-[submodule "project/jni/boost/src"]
-	path = project/jni/boost/src
-	url = git://github.com/pelya/Boost-for-Android.git
-[submodule "project/jni/application/commandergenius/commandergenius"]
-	path = project/jni/application/commandergenius/commandergenius
-	url = git://clonekeenplus.git.sourceforge.net/gitroot/clonekeenplus/clonekeenplus
