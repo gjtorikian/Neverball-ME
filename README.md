@@ -26,7 +26,7 @@ The following aspects of the game, in no particular order, are either not workin
 
 # Gameplay & Documentation
 
-The documentation for Neverball ME is located on [this site's GitHub page, at http://gjtorikian.github.com/Neverball-ME](http://gjtorikian.github.com/Neverball-ME/).
+The documentation for Neverball ME is located on [this site's GitHub page: http://gjtorikian.github.com/Neverball-ME](http://gjtorikian.github.com/Neverball-ME/).
 
 # Credits
 
