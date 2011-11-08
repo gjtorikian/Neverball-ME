@@ -29,24 +29,19 @@
 </script>
 </head>
 <body>
-	<div class="addthis_toolbox addthis_default_style " style="top: 0; right: 0; position: fixed; ">
-		<form action="https://www.paypal.com/cgi-bin/webscr" method="post">
-		<input type="hidden" name="cmd" value="_s-xclick">
-		<input type="hidden" name="hosted_button_id" value="TZXUP44TN8WAN">
-		<input type="image" src="https://www.paypalobjects.com/WEBSCR-640-20110306-1/en_US/i/btn/btn_donate_SM.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
-		<img alt="" border="0" src="https://www.paypalobjects.com/WEBSCR-640-20110306-1/en_US/i/scr/pixel.gif" width="1" height="1">
-		</form>
-	<a class="addthis_button_facebook_like" fb:like:layout="button_count"></a>
-	<a class="addthis_button_tweet"></a>
-	<script type="text/javascript" src="http://s7.addthis.com/js/250/addthis_widget.js#pubid=xa-4d8052f133727125"></script>
+	<div class="addthis_toolbox" style="top: 0; right: 0; padding-right: 25px; position: fixed; ">
+	    <div class="vertical">
+	    	<a class="addthis_button_twitter"></a>
+	   		<a class="addthis_button_google_plusone"></a>
+	        <a class="addthis_button_facebook"></a>
+	    </div>
 	</div>
+	<script type="text/javascript" src="http://s7.addthis.com/js/250/addthis_widget.js#pubid=xa-4d8052f133727125"></script>
 <div id="container">
 	<div id="navigation">
 		<ul>
-		<li><a href="http://neverball-me.tumblr.com">Blog</a></li>
 		<li><a href="http://forum.nevercorner.net/">Forums</a></li>
 		<li><a href="https://github.com/gjtorikian/Neverball-ME">Source Code</a></li>
-		<li><a href="#">neverball.me [ at ] gmail [ dot ] com</a> <a href="http://www.twitter.com/neverballme"><img src="http://twitter-badges.s3.amazonaws.com/t_small-a.png" alt="Follow neverballme on Twitter"/></a></li>
 		</ul>
 		
 	</div>
@@ -65,7 +60,7 @@
 					<div id="tab1" class="tab_content">
 						
 					<h1>What is this?</h1>
-					<p>This is the development home for the Android port of the wildly popular and insanely ever-lasting game <a href="http://www.neverball.com">Neverball</a>. Neverball is a ball-rolling game originally developed for desktops. Neverball ME ("mobile edition") refers to its mobile variants. Neverball is GPLv2, requires SDL 1.2, and runs against OpenGL ES 1.1 specifications. It is available for devices using Android 2.1 (Eclair) and above; you can find it on <a href="https://market.android.com/details?id=com.miadzin.neverball">the Android Market</a>.</p>
+					<p>This is the development home for the Android port of the wildly popular and insanely ever-lasting game <a href="http://www.neverball.com">Neverball</a>. Neverball is a ball-rolling game originally developed for desktops. Neverball ME ("mobile edition") refers to its mobile variants. Neverball is GPLv2, requires SDL 1.2, and runs against OpenGL ES 1.1 specifications. It is available for devices using Android 2.1 (Eclair) and above. You can't find it on the Android Market just yet, as the game is currently in beta. Testers are needed to ensure that everything is flawless!</p>
 					<p>Originally, Neverball was developed by Robert Kooima, but over the years it has attracted <a href="http://www.neverball.org/contributors.php">a large number of contributors</a>. The main Neverball SVN continues to grow with new features, bugfixes, and additional maps. As Neverball development continues, so too will Neverball ME. This port is maintained by one person.</p>				
 					
 					<h1>Gameplay</h1>
@@ -78,10 +73,9 @@
 							<li>Blue coins are worth ten coins</li>
 						</ul></p>
 					<p>After getting 100 coins, you'll get an extra ball.</p>
-					<p>When you start Neverball for the first time, it downloads a 7z file filled with maps, sounds, and other necessary game data. This file is stored on the SD card, so there's no need to worry about running out of space. I recommend you switch to WiFi to grab the files quickly. As time passes I intend to introduce more maps, which will require additional downloads.</p>
 					
 					<h1>Language Support</h1>
-					<p>Neverball ME is playable in the following languages:
+					<p>Neverball ME <em>should</em> playable in the following languages, though not all have been tested:
 						<ul>
 							<li>Catal&agrave; / Catalan</li>
 							<li>Deutsch / German</li>
@@ -110,16 +104,15 @@
 			<div id="tab2" class="tab_content">
 			       	<h1>What is this?</h1>
 					<p>Neverputt is a miniature golf game built on the same graphics and physics engine as Neverball. It is a separate game that shares many of the same features, code, and design implementations as Neverball.</p>
-					<p>Neverputt is GPLv2, requires SDL 1.2, and runs against OpenGL ES 1.1 specifications. It is available for devices using Android 2.1 (Eclair) and above; you can find it on <a href="https://market.android.com/details?id=com.miadzin.neverputt">the Android Market</a>.</p>
+					<p>Neverputt is GPLv2, requires SDL 1.2, and runs against OpenGL ES 1.1 specifications. You can't find it on the Android Market just yet, as the game is currently in beta. Testers are needed to ensure that everything is flawless!</p>
 					<p>Best of all, the game supports multiple players!</p>				
 					
 					<h1>Gameplay</h1>
 					<p>If you know the basic rules of golf, Neverputt gameplay should be no surprise. Anywhere from one to four players can participate. You must get your ball into the goal in the shortest number of moves possible. The gameplay increases in difficulty as courses become longer and introduce new elements such as movable obstacles. Falling off the course counts against you as a stroke.</p>
 					<p>To change the direction you want to hit your ball, flick your finger left or right on the touchscreen. To control the strength of your hit, move your finger forward or backward. Pressing your device's <strong>Menu</strong> key hits the ball.</p>
-					<p>When you start Neverputt for the first time, it downloads a 7z file from the internet filled with maps, sounds, and other necessary game data. This file is stored on the SD card, so there's no need to worry about running out of space. I recommend you switch to WiFi or 3G/4G to grab the files quickly.</p>
 					
 					<h1>Language Support</h1>
-					<p>Neverputt ME is playable in the following languages:
+					<p>Neverputt ME <em>should</em> playable in the following languages, though not all have been tested:
 						<ul>
 							<li>Catal&agrave; / Catalan</li>
 							<li>Deutsch / German</li>
@@ -146,8 +139,6 @@
 				</div>
 				
 <div id="sidebar">
-	<h1>Donations</h1>
-	<p>Did you like this project? Then please, consider sending a donation to support it. Otherwise I'll have to fill the page with ads like this one:
 		<script type="text/javascript"><!--
 		google_ad_client = "ca-pub-6880494445688269";
 		/* Neverball-ME */
@@ -158,6 +149,7 @@
 		</script>
 		<script type="text/javascript"
 		src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+		</script>
 		</script>
 	</p>
 </div>
@@ -173,7 +165,6 @@
 	</p>
 </div>
 <div id="footer">
-
 	<span id="design-by">Original Design by <a href="http://smallpark.org">Smallpark Studios</a></span> 
 	  Garen J. Torikian 2011
 </div>
