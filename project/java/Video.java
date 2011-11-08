@@ -56,7 +56,6 @@ import java.util.LinkedList;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-
 class Mouse
 {
 	public static final int LEFT_CLICK_NORMAL = 0;
@@ -320,7 +319,19 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		}
 
 		Settings.Apply(context);
+		Globals.UseAccelerometerAsArrowKeys = true; // GJT: Fix for bug when the startup screen is disabled
 		accelerometer = new AccelerometerReader(context);
+
+		// GJT: Get APK path 	
+        String apkFilePath = NeverballMESupport.getAPKPath(context);
+        String sdCardPath = Environment.getExternalStorageDirectory() + "/app-data/com.miadzin.neverballme";
+
+        setDataPaths(apkFilePath, sdCardPath);
+
+        int[] displayDimensions = NeverballMESupport.getDimensions(context);
+
+        setDimensions(displayDimensions[0], displayDimensions[1]);
+
 		// Tweak video thread priority, if user selected big audio buffer
 		if(Globals.AudioBufferConfig >= 2)
 			Thread.currentThread().setPriority( (Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2 ); // Lower than normal
@@ -444,6 +455,11 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	public static native void nativeTextInput( int ascii, int unicode );
 	public static native void nativeTextInputFinished();
 
+	//GJT: Add apk file path reference
+	public static native void setDataPaths(String apkPath, String sdCardPath);
+	//GJT: Add screen dimensions
+	public static native void setDimensions(int width, int height);
+
 	private MainActivity context = null;
 	public AccelerometerReader accelerometer = null;
 	
@@ -545,7 +561,6 @@ class DemoGLSurfaceView extends GLSurfaceView_SDL {
 	public static native void nativeMouse( int x, int y, int action, int pointerId, int pressure, int radius );
 	public static native int nativeKey( int keyCode, int down );
 	public static native void initJavaCallbacks();
-
 }
 
 

@@ -853,10 +853,10 @@ if [ -d "project/jni/application/src/AndroidData" ] ; then
 	for F in project/jni/application/src/AndroidData/*; do
 		if [ `cat $F | wc -c` -gt 1048576 ] ; then
 			echo "Error: the file $F is bigger than 1048576 bytes - some Android devices will fail to extract such file\nPlease split your data into several small files, or use HTTP download method"
-			exit 1
+			#exit 1
 		fi
 	done
-	cp project/jni/application/src/AndroidData/* project/assets/
+	cp -r project/jni/application/src/AndroidData/* project/assets/
 	ln -s ../libs/armeabi/stdout-test project/assets/
 fi
 

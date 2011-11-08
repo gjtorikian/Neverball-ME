@@ -1,0 +1,509 @@
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/neverball/!svn/ver/3605/branches/gles/share
+END
+st_resol.h
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/st_resol.h
+END
+config.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/config.c
+END
+config.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/config.h
+END
+base_image.c
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3564/branches/gles/share/base_image.c
+END
+array.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/array.c
+END
+fs_common.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_common.c
+END
+base_image.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3524/branches/gles/share/base_image.h
+END
+tilt.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/tilt.h
+END
+image.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3597/branches/gles/share/image.c
+END
+array.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/array.h
+END
+binary.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/binary.c
+END
+text.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/text.c
+END
+solid_sim.h
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_sim.h
+END
+image.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/image.h
+END
+binary.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/binary.h
+END
+text.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/text.h
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/Makefile
+END
+solid_base.c
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3593/branches/gles/share/solid_base.c
+END
+fs_physfs.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_physfs.c
+END
+tilt_loop.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/tilt_loop.c
+END
+video.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3586/branches/gles/share/video.c
+END
+solid_base.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3582/branches/gles/share/solid_base.h
+END
+ball.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3574/branches/gles/share/ball.c
+END
+list.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/list.c
+END
+video.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/video.h
+END
+keynames.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/keynames.c
+END
+fs_png.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_png.c
+END
+fs.h
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs.h
+END
+ball.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3574/branches/gles/share/ball.h
+END
+list.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/list.h
+END
+keynames.h
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/keynames.h
+END
+fs_png.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_png.h
+END
+glext.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3597/branches/gles/share/glext.c
+END
+gui.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3567/branches/gles/share/gui.c
+END
+tilt_wii.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/tilt_wii.c
+END
+solid_draw.c
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3605/branches/gles/share/solid_draw.c
+END
+geom.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3605/branches/gles/share/geom.c
+END
+glext.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3597/branches/gles/share/glext.h
+END
+gui.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3540/branches/gles/share/gui.h
+END
+solid_draw.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3596/branches/gles/share/solid_draw.h
+END
+geom.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3605/branches/gles/share/geom.h
+END
+solid_cmd.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_cmd.c
+END
+item.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3574/branches/gles/share/item.c
+END
+solid_sim_sol.c
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_sim_sol.c
+END
+base_config.c
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/neverball/!svn/ver/3564/branches/gles/share/base_config.c
+END
+solid_cmd.h
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_cmd.h
+END
+fs_rwops.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_rwops.c
+END
+item.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3574/branches/gles/share/item.h
+END
+base_config.h
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/neverball/!svn/ver/3524/branches/gles/share/base_config.h
+END
+part.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3605/branches/gles/share/part.c
+END
+tilt_null.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/tilt_null.c
+END
+fs_rwops.h
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_rwops.h
+END
+part.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3575/branches/gles/share/part.h
+END
+mapc.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3544/branches/gles/share/mapc.c
+END
+syswm.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/syswm.c
+END
+syswm.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/syswm.h
+END
+vec3.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/vec3.c
+END
+audio.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3527/branches/gles/share/audio.c
+END
+solid_all.c
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_all.c
+END
+cmd.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/share/cmd.c
+END
+vec3.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/vec3.h
+END
+audio.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/audio.h
+END
+solid_all.h
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_all.h
+END
+cmd.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/share/cmd.h
+END
+fs_jpg.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_jpg.c
+END
+fs_stdio.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_stdio.c
+END
+solid_vary.c
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_vary.c
+END
+fs_ov.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_ov.c
+END
+sync.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3527/branches/gles/share/sync.c
+END
+fs_jpg.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/fs_jpg.h
+END
+dir.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/share/dir.c
+END
+solid_vary.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/neverball/!svn/ver/3524/branches/gles/share/solid_vary.h
+END
+state.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3551/branches/gles/share/state.c
+END
+lang.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/lang.c
+END
+fs_ov.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3527/branches/gles/share/fs_ov.h
+END
+sync.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/sync.h
+END
+dir.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/share/dir.h
+END
+queue.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/queue.c
+END
+state.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/state.h
+END
+lang.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/neverball/!svn/ver/3524/branches/gles/share/lang.h
+END
+common.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/common.c
+END
+queue.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/share/queue.h
+END
+st_resol.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/neverball/!svn/ver/3549/branches/gles/share/st_resol.c
+END
+common.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/share/common.h
+END

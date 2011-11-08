@@ -1,0 +1,89 @@
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/neverball/!svn/ver/3524/branches/gles/putt
+END
+game.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/putt/game.h
+END
+st_all.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/putt/st_all.c
+END
+course.c
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/putt/course.c
+END
+hud.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/neverball/!svn/ver/3524/branches/gles/putt/hud.c
+END
+st_conf.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/putt/st_conf.h
+END
+st_all.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/putt/st_all.h
+END
+main.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/putt/main.c
+END
+course.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/putt/course.h
+END
+hud.h
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/neverball/!svn/ver/3524/branches/gles/putt/hud.h
+END
+hole.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/putt/hole.c
+END
+game.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/putt/game.c
+END
+st_conf.c
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/neverball/!svn/ver/3524/branches/gles/putt/st_conf.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/neverball/!svn/ver/3524/branches/gles/putt/Makefile
+END
+hole.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/neverball/!svn/ver/3524/branches/gles/putt/hole.h
+END

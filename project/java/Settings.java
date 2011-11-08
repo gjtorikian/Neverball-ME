@@ -2431,8 +2431,14 @@ class Settings
 				Globals.TouchscreenCalibration[2], Globals.TouchscreenCalibration[3]);
 
 		String lang = new String(Locale.getDefault().getLanguage());
-		if( Locale.getDefault().getCountry().length() > 0 )
-			lang = lang + "_" + Locale.getDefault().getCountry();
+
+		// GJT: Only get country code of PT or ZH
+		if (lang.startsWith("zh") || lang.startsWith("pt"))
+		{
+			if( Locale.getDefault().getCountry().length() > 0 )
+				lang = lang + "_" + Locale.getDefault().getCountry();
+		}
+
 		System.out.println( "libSDL: setting envvar LANGUAGE to '" + lang + "'");
 		nativeSetEnv( "LANG", lang );
 		nativeSetEnv( "LANGUAGE", lang );
