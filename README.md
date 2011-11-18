@@ -6,6 +6,8 @@ Neverball ME, or "mobile edition," is the first public forray onto mobile platfo
 
 Neverball ME is only available for Android devices running 2.1 (Eclair) and above. 
 
+Here's a fairly old dev video showing the game off, including HDMI output support on my phone: http://www.youtube.com/watch?v=NmtxeD3SylI
+
 # How to Build
 
 If you just want to play the game without installing it, you can! Simply type `adb install -r project/bin/MainActivity-debug.apk`. If you don't have `adb` installed, you could try emailing the .apk to your Gmail account, opening that attachment from your phone, and installing it there.
