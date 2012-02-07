@@ -65,7 +65,7 @@ static int leftClickMethod = LEFT_CLICK_NORMAL;
 static int rightClickMethod = RIGHT_CLICK_NONE;
 static int leftClickKey = KEYCODE_DPAD_CENTER;
 static int rightClickKey = KEYCODE_MENU;
-int SDL_ANDROID_ShowScreenUnderFinger = 0;
+int SDL_ANDROID_ShowScreenUnderFinger = ZOOM_NONE;
 SDL_Rect SDL_ANDROID_ShowScreenUnderFingerRect = {0, 0, 0, 0}, SDL_ANDROID_ShowScreenUnderFingerRectSrc = {0, 0, 0, 0};
 static int moveMouseWithArrowKeys = 0;
 static int clickMouseWithDpadCenter = 0;
@@ -120,7 +120,7 @@ int oldMouseButtons = 0;
 
 static int UnicodeToUtf8(int src, char * dest)
 {
-	int len = 0;
+    int len = 0;
     if ( src <= 0x007f) {
         *dest++ = (char)src;
         len = 1;
@@ -159,49 +159,107 @@ void UpdateScreenUnderFingerRect(int x, int y)
 {
 #if SDL_VERSION_ATLEAST(1,3,0)
 	return;
-	/*
-	int screenX = 320, screenY = 240;
-	if( !SDL_ANDROID_ShowScreenUnderFinger )
-		return;
-
-	SDL_Window * window = SDL_GetFocusWindow();
-	if( window && window->renderer->window ) {
-		screenX = window->w;
-		screenY = window->h;
-	}
-	*/
 #else
 	int screenX = SDL_ANDROID_sFakeWindowWidth, screenY = SDL_ANDROID_sFakeWindowHeight;
-	if( !SDL_ANDROID_ShowScreenUnderFinger )
+	if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_NONE )
 		return;
 
-	SDL_ANDROID_ShowScreenUnderFingerRectSrc.w = screenX / 4;
-	SDL_ANDROID_ShowScreenUnderFingerRectSrc.h = screenY / 4;
-	SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = x - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w/2;
-	SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = y - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h/2;
-	if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x < 0 )
-		SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = 0;
-	if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y < 0 )
-		SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = 0;
-	if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x > screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w )
-		SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
-	if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y > screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h )
-		SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
-	
-	SDL_ANDROID_ShowScreenUnderFingerRect.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.w * 3 / 2;
-	SDL_ANDROID_ShowScreenUnderFingerRect.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.h * 3 / 2;
-	SDL_ANDROID_ShowScreenUnderFingerRect.x = x + SDL_ANDROID_ShowScreenUnderFingerRect.w/10;
-	SDL_ANDROID_ShowScreenUnderFingerRect.y = y - SDL_ANDROID_ShowScreenUnderFingerRect.h*11/10;
-	if( SDL_ANDROID_ShowScreenUnderFingerRect.x < 0 )
+	if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER )
+	{
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.w = screenX / 4;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.h = screenY / 4;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = x - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w/2;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = y - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h/2;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = 0;
+
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x > screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y > screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+
+		SDL_ANDROID_ShowScreenUnderFingerRect.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.w * 3 / 2;
+		SDL_ANDROID_ShowScreenUnderFingerRect.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.h * 3 / 2;
+		SDL_ANDROID_ShowScreenUnderFingerRect.x = x + SDL_ANDROID_ShowScreenUnderFingerRect.w/10;
+		SDL_ANDROID_ShowScreenUnderFingerRect.y = y - SDL_ANDROID_ShowScreenUnderFingerRect.h*11/10;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x + SDL_ANDROID_ShowScreenUnderFingerRect.w >= screenX )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRect.w - 1;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y + SDL_ANDROID_ShowScreenUnderFingerRect.h >= screenY )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRect.h - 1;
+		if( InsideRect(&SDL_ANDROID_ShowScreenUnderFingerRect, x, y) )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = x - SDL_ANDROID_ShowScreenUnderFingerRect.w*11/10 - 1;
+	}
+	if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_SCREEN_TRANSFORM )
+	{
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.w = screenX / 3;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.h = screenY / 3;
+		//SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = x - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w/2;
+		//SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = y - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h/2;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = x * (screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w) / screenX;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = y * (screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h) / screenY;
+
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x > screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y > screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+
+		SDL_ANDROID_ShowScreenUnderFingerRect.w = screenX * 2 / 3;
+		SDL_ANDROID_ShowScreenUnderFingerRect.h = screenY * 2 / 3;
+		//SDL_ANDROID_ShowScreenUnderFingerRect.x = x - SDL_ANDROID_ShowScreenUnderFingerRect.w/2;
+		//SDL_ANDROID_ShowScreenUnderFingerRect.y = y - SDL_ANDROID_ShowScreenUnderFingerRect.h/2;
+		SDL_ANDROID_ShowScreenUnderFingerRect.x = x * (screenX - SDL_ANDROID_ShowScreenUnderFingerRect.w) / screenX;
+		SDL_ANDROID_ShowScreenUnderFingerRect.y = y * (screenY - SDL_ANDROID_ShowScreenUnderFingerRect.h) / screenY;
+		
+
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x > SDL_ANDROID_ShowScreenUnderFingerRectSrc.x )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y > SDL_ANDROID_ShowScreenUnderFingerRectSrc.y )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x + SDL_ANDROID_ShowScreenUnderFingerRect.w < SDL_ANDROID_ShowScreenUnderFingerRectSrc.x + SDL_ANDROID_ShowScreenUnderFingerRectSrc.w )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x + SDL_ANDROID_ShowScreenUnderFingerRectSrc.w - SDL_ANDROID_ShowScreenUnderFingerRect.w;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y + SDL_ANDROID_ShowScreenUnderFingerRect.h < SDL_ANDROID_ShowScreenUnderFingerRectSrc.y + SDL_ANDROID_ShowScreenUnderFingerRectSrc.h )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y + SDL_ANDROID_ShowScreenUnderFingerRectSrc.h - SDL_ANDROID_ShowScreenUnderFingerRect.h;
+
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.x > screenX - SDL_ANDROID_ShowScreenUnderFingerRect.w )
+			SDL_ANDROID_ShowScreenUnderFingerRect.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRect.w;
+		if( SDL_ANDROID_ShowScreenUnderFingerRect.y > screenY - SDL_ANDROID_ShowScreenUnderFingerRect.h )
+			SDL_ANDROID_ShowScreenUnderFingerRect.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRect.h;
+	}
+	if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_FULLSCREEN_MAGNIFIER )
+	{
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.w = screenX / 2;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.h = screenY / 2;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = x - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w/2;
+		SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = y - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h/2;
+
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y < 0 )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = 0;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.x > screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+		if( SDL_ANDROID_ShowScreenUnderFingerRectSrc.y > screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h )
+			SDL_ANDROID_ShowScreenUnderFingerRectSrc.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+
 		SDL_ANDROID_ShowScreenUnderFingerRect.x = 0;
-	if( SDL_ANDROID_ShowScreenUnderFingerRect.y < 0 )
 		SDL_ANDROID_ShowScreenUnderFingerRect.y = 0;
-	if( SDL_ANDROID_ShowScreenUnderFingerRect.x + SDL_ANDROID_ShowScreenUnderFingerRect.w >= screenX )
-		SDL_ANDROID_ShowScreenUnderFingerRect.x = screenX - SDL_ANDROID_ShowScreenUnderFingerRect.w - 1;
-	if( SDL_ANDROID_ShowScreenUnderFingerRect.y + SDL_ANDROID_ShowScreenUnderFingerRect.h >= screenY )
-		SDL_ANDROID_ShowScreenUnderFingerRect.y = screenY - SDL_ANDROID_ShowScreenUnderFingerRect.h - 1;
-	if( InsideRect(&SDL_ANDROID_ShowScreenUnderFingerRect, x, y) )
-		SDL_ANDROID_ShowScreenUnderFingerRect.x = x - SDL_ANDROID_ShowScreenUnderFingerRect.w*11/10 - 1;
+		SDL_ANDROID_ShowScreenUnderFingerRect.w = screenX;
+		SDL_ANDROID_ShowScreenUnderFingerRect.h = screenY;
+	}
 #endif
 }
 
@@ -472,7 +530,7 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 
 			SDL_ANDROID_ShowScreenUnderFingerRect.w = SDL_ANDROID_ShowScreenUnderFingerRect.h = 0;
 			SDL_ANDROID_ShowScreenUnderFingerRectSrc.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.h = 0;
-			if( SDL_ANDROID_ShowScreenUnderFinger )
+			if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER )
 			{
 				// Move mouse by 1 pixel so it will force screen update and mouse-under-finger window will be removed
 				if( moveMouseWithKbX >= 0 )
@@ -587,8 +645,12 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 					}
 				}
 			}
-			UpdateScreenUnderFingerRect(x, y);
+			if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER )
+				UpdateScreenUnderFingerRect(x, y);
 		}
+		if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_SCREEN_TRANSFORM ||
+			SDL_ANDROID_ShowScreenUnderFinger == ZOOM_FULLSCREEN_MAGNIFIER )
+			UpdateScreenUnderFingerRect(x, y);
 	}
 	if( pointerId != firstMousePointerId && (action == MOUSE_DOWN || action == MOUSE_UP) )
 	{
@@ -713,7 +775,7 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeTextInput) ( JNIEnv*  env, jobject thiz, jin
 		SDL_ANDROID_MainThreadPushText(ascii, unicode);
 	else
 	{
-		if( textInputBufferPos < textInputBufferLen + 4 )
+		if( textInputBufferPos < textInputBufferLen + 4 && ascii != SDLK_RETURN && ascii != '\r' && ascii != '\n' )
 		{
 			textInputBufferPos += UnicodeToUtf8(unicode, textInputBuffer + textInputBufferPos);
 		}
@@ -771,18 +833,18 @@ static int getClickTimeout(int v)
 {
 	switch(v)
 	{
-		case 0: return 300;
-		case 1: return 500;
-		case 2: return 700;
-		case 3: return 1000;
-		case 4: return 1500;
+		case 0: return 200;
+		case 1: return 300;
+		case 2: return 400;
+		case 3: return 700;
+		case 4: return 1000;
 	}
 	return 1000;
 }
 
 // Mwahaha overkill!
 JNIEXPORT void JNICALL
-JAVA_EXPORT_NAME(Settings_nativeSetMouseUsed) ( JNIEnv*  env, jobject thiz,
+JAVA_EXPORT_NAME(Settings_nativeSetMouseUsed) (JNIEnv* env, jobject thiz,
 		jint RightClickMethod, jint ShowScreenUnderFinger, jint LeftClickMethod,
 		jint MoveMouseWithJoystick, jint ClickMouseWithDpad,
 		jint MaxForce, jint MaxRadius,
@@ -814,7 +876,20 @@ JAVA_EXPORT_NAME(Settings_nativeSetMouseUsed) ( JNIEnv*  env, jobject thiz,
 }
 
 JNIEXPORT void JNICALL 
-JAVA_EXPORT_NAME(Settings_nativeSetJoystickUsed) ( JNIEnv*  env, jobject thiz)
+JAVA_EXPORT_NAME(Settings_nativeSetExternalMouseDetected) (JNIEnv* env, jobject thiz)
+{
+	if( !isMouseUsed )
+		return;
+
+	leftClickMethod = LEFT_CLICK_NORMAL;
+	SDL_ANDROID_ShowScreenUnderFinger = 0;
+	leftClickTimeout = 0;
+	relativeMovement = 0;
+	SDL_ANDROID_ShowMouseCursor = 0;
+}
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(Settings_nativeSetJoystickUsed) (JNIEnv* env, jobject thiz)
 {
 	SDL_ANDROID_isJoystickUsed = 1;
 }
@@ -1215,6 +1290,7 @@ static SDL_mutex * BufferedEventsMutex = NULL;
 #if SDL_VERSION_ATLEAST(1,3,0)
 
 #define SDL_SendKeyboardKey(state, keysym) SDL_SendKeyboardKey(state, (keysym)->sym)
+extern SDL_Window * ANDROID_CurrentWindow;
 
 #else
 
@@ -1229,6 +1305,11 @@ extern void SDL_ANDROID_PumpEvents()
 	SDL_Event ev;
 	SDL_ANDROID_processAndroidTrackballDampening();
 	SDL_ANDROID_processMoveMouseWithKeyboard();
+#if SDL_VERSION_ATLEAST(1,3,0)
+	SDL_Window * window = SDL_GetFocusWindow();
+	if( !window )
+		return;
+#endif
 
 	if( !BufferedEventsMutex )
 		BufferedEventsMutex = SDL_CreateMutex();
@@ -1246,13 +1327,13 @@ extern void SDL_ANDROID_PumpEvents()
 		switch( ev.type )
 		{
 			case SDL_MOUSEMOTION:
-				SDL_SendMouseMotion(NULL, 0, ev.motion.x, ev.motion.y);
+				SDL_SendMouseMotion(ANDROID_CurrentWindow, 0, ev.motion.x, ev.motion.y);
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if( ((oldMouseButtons & SDL_BUTTON(ev.button.button)) != 0) != ev.button.state )
 				{
 					oldMouseButtons = (oldMouseButtons & ~SDL_BUTTON(ev.button.button)) | (ev.button.state ? SDL_BUTTON(ev.button.button) : 0);
-					SDL_SendMouseButton( NULL, ev.button.state, ev.button.button );
+					SDL_SendMouseButton( ANDROID_CurrentWindow, ev.button.state, ev.button.button );
 				}
 				break;
 			case SDL_KEYDOWN:
@@ -1269,10 +1350,10 @@ extern void SDL_ANDROID_PumpEvents()
 				break;
 #if SDL_VERSION_ATLEAST(1,3,0)
 			case SDL_FINGERMOTION:
-				SDL_SendTouchMotion(0, ev.tfinger.fingerId, 0, ev.tfinger.x, ev.tfinger.y, ev.tfinger.pressure);
+				SDL_SendTouchMotion(0, ev.tfinger.fingerId, 0, (float)ev.tfinger.x / (float)window->w, (float)ev.tfinger.y / (float)window->h, ev.tfinger.pressure);
 				break;
 			case SDL_FINGERDOWN:
-				SDL_SendFingerDown(0, ev.tfinger.fingerId, ev.tfinger.state ? 1 : 0, ev.tfinger.x, ev.tfinger.y, ev.tfinger.pressure);
+				SDL_SendFingerDown(0, ev.tfinger.fingerId, ev.tfinger.state ? 1 : 0, (float)ev.tfinger.x / (float)window->w, (float)ev.tfinger.y / (float)window->h, ev.tfinger.pressure);
 				break;
 			case SDL_TEXTINPUT:
 				SDL_SendKeyboardText(ev.text.text);
@@ -1285,7 +1366,7 @@ extern void SDL_ANDROID_PumpEvents()
 	SDL_mutexV(BufferedEventsMutex);
 };
 // Queue events to main thread
-static int getNextEvent()
+static int getNextEventAndLock()
 {
 	int nextEvent;
 	if( !BufferedEventsMutex )
@@ -1311,17 +1392,38 @@ static int getNextEvent()
 	return nextEvent;
 }
 
+static int getPrevEventNoLock()
+{
+	int prevEvent;
+	if(BufferedEventsStart == BufferedEventsEnd)
+		return -1;
+	prevEvent = BufferedEventsEnd;
+	prevEvent--;
+	if( prevEvent < 0 )
+		prevEvent = MAX_BUFFERED_EVENTS - 1;
+	return prevEvent;
+}
+
 extern void SDL_ANDROID_MainThreadPushMouseMotion(int x, int y)
 {
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
-	SDL_Event * ev = &BufferedEvents[BufferedEventsEnd];
-	
-	ev->type = SDL_MOUSEMOTION;
-	ev->motion.x = x;
-	ev->motion.y = y;
+	int prevEvent = getPrevEventNoLock();
+	if( prevEvent > 0 && BufferedEvents[prevEvent].type == SDL_MOUSEMOTION )
+	{
+		// Reuse previous mouse motion event, to prevent mouse movement lag
+		BufferedEvents[prevEvent].motion.x = x;
+		BufferedEvents[prevEvent].motion.y = y;
+	}
+	else
+	{
+		SDL_Event * ev = &BufferedEvents[BufferedEventsEnd];
+		ev->type = SDL_MOUSEMOTION;
+		ev->motion.x = x;
+		ev->motion.y = y;
+	}
 	oldMouseX = x;
 	oldMouseY = y;
 	
@@ -1330,7 +1432,7 @@ extern void SDL_ANDROID_MainThreadPushMouseMotion(int x, int y)
 };
 extern void SDL_ANDROID_MainThreadPushMouseButton(int pressed, int button)
 {
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1346,7 +1448,7 @@ extern void SDL_ANDROID_MainThreadPushMouseButton(int pressed, int button)
 
 extern void SDL_ANDROID_MainThreadPushKeyboardKey(int pressed, SDL_scancode key)
 {
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1432,9 +1534,9 @@ extern void SDL_ANDROID_MainThreadPushKeyboardKey(int pressed, SDL_scancode key)
 #if SDL_VERSION_ATLEAST(1,3,0)
 #else
 	if ( SDL_TranslateUNICODE )
-		ev->key.keysym.unicode = key;
 #endif
-	
+		ev->key.keysym.unicode = key;
+
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
 };
@@ -1444,7 +1546,7 @@ extern void SDL_ANDROID_MainThreadPushJoystickAxis(int joy, int axis, int value)
 	if( ! ( joy < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[joy] ) )
 		return;
 
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1463,7 +1565,7 @@ extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pr
 	if( ! ( joy < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[joy] ) )
 		return;
 
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1480,7 +1582,7 @@ extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pr
 extern void SDL_ANDROID_MainThreadPushMultitouchButton(int id, int pressed, int x, int y, int force)
 {
 #if SDL_VERSION_ATLEAST(1,3,0)
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1500,7 +1602,7 @@ extern void SDL_ANDROID_MainThreadPushMultitouchButton(int id, int pressed, int 
 extern void SDL_ANDROID_MainThreadPushMultitouchMotion(int id, int x, int y, int force)
 {
 #if SDL_VERSION_ATLEAST(1,3,0)
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1517,12 +1619,6 @@ extern void SDL_ANDROID_MainThreadPushMultitouchMotion(int id, int x, int y, int
 #endif
 };
 
-#if SDL_VERSION_ATLEAST(1,3,0)
-extern void SDL_ANDROID_DeferredTextInput()
-{
-};
-#else
-
 enum { DEFERRED_TEXT_COUNT = 256 };
 static struct { int scancode; int unicode; int down; } deferredText[DEFERRED_TEXT_COUNT];
 static int deferredTextIdx1 = 0;
@@ -1536,7 +1632,11 @@ static SDL_keysym asciiToKeysym(int ascii, int unicode)
 	keysym.sym = ascii;
 	keysym.mod = KMOD_NONE;
 	keysym.unicode = 0;
+#if SDL_VERSION_ATLEAST(1,3,0)
+	keysym.sym = SDL_GetScancodeFromKey(ascii);
+#else
 	if ( SDL_TranslateUNICODE )
+#endif
 		keysym.unicode = unicode;
 	return keysym;
 }
@@ -1580,7 +1680,7 @@ void SDL_ANDROID_DeferredTextInput()
 	
 	if( deferredTextIdx1 != deferredTextIdx2 )
 	{
-		int nextEvent = getNextEvent();
+		int nextEvent = getNextEventAndLock();
 		if( nextEvent == -1 )
 		{
 			SDL_mutexV(deferredTextMutex);
@@ -1603,14 +1703,13 @@ void SDL_ANDROID_DeferredTextInput()
 	
 	SDL_mutexV(deferredTextMutex);
 };
-#endif
 
 extern void SDL_ANDROID_MainThreadPushText( int ascii, int unicode )
 {
 	int shiftRequired;
 
 	//__android_log_print(ANDROID_LOG_INFO, "libSDL", "SDL_ANDROID_MainThreadPushText(): %i %i", scancode, unicode);
-	int nextEvent = getNextEvent();
+	int nextEvent = getNextEventAndLock();
 	if( nextEvent == -1 )
 		return;
 	
@@ -1621,7 +1720,7 @@ extern void SDL_ANDROID_MainThreadPushText( int ascii, int unicode )
 	ev->type = SDL_TEXTINPUT;
 	UnicodeToUtf8(unicode, ev->text.text);
 
-#else
+#endif
 
 	if( !deferredTextMutex )
 		deferredTextMutex = SDL_CreateMutex();
@@ -1666,8 +1765,6 @@ extern void SDL_ANDROID_MainThreadPushText( int ascii, int unicode )
 
 	SDL_mutexV(deferredTextMutex);
 
-#endif
-	
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
 };

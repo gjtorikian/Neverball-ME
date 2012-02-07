@@ -103,6 +103,7 @@ struct s_rend
     struct d_mtrl mtrl;                 /* Current material                  */
     int flags;                          /* Current material base flags       */
 
+    unsigned int color_mtrl:1;          /* Color material flag               */
     unsigned int shadow:1;
 };
 
@@ -124,8 +125,7 @@ void sol_back(const struct s_draw *, struct s_rend *, float, float, float);
 void sol_refl(const struct s_draw *, struct s_rend *);
 void sol_draw(const struct s_draw *, struct s_rend *, int, int);
 void sol_bill(const struct s_draw *, struct s_rend *, const float *, float);
-
-void sol_fade(const struct s_draw *, float);
+void sol_fade(const struct s_draw *, struct s_rend *, float);
 
 /*---------------------------------------------------------------------------*/
 

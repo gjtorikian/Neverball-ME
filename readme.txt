@@ -1,7 +1,9 @@
 This is SDL 1.2 and 1.3 ported to Google Android (also bunch of other libs included).
-The libsdl.org now has an official SDL 1.3 Android port, which supports ABGR8888 pixel format and
-creating GLES2 context. This port supports only GLES version 1 and 16-bit pixel format,
-focused mainly on SDL 1.2, and won't keep updating with SDL 1.3 from libsdl.org.
+The libsdl.org now has an official SDL 1.3 Android port, which is more recent and
+better suited for creating new applications from scratch, this port is focused mainly
+on SDL 1.2 and compiling existing applications, it's up to you to decide which port is better.
+Also this port is developed very slowly, although the same is true for an official port.
+
 
 Installation
 ============
@@ -23,10 +25,10 @@ How to compile demo application
 ===============================
 
 Launch commands
-	android update project -p project -t android-12
 	rm project/jni/application/src
 	ln -s ballfield project/jni/application/src
-	ChangeAppSettings.sh -a
+	./ChangeAppSettings.sh -a
+	android update project -p project -t android-12
 Then edit file build.sh if needed to add NDK dir to your PATH, then launch it.
 It will compile a bunch of libs under project/libs/armeabi,
 create file project/bin/DemoActivity-debug.apk and install it on your device or emulator.
@@ -53,7 +55,9 @@ You may find quick Android game porting manual at http://anddev.at.ua/src/portin
 If you're porting existing app which uses SDL 1.2 please always use SW mode:
 neither SDL_SetVideoMode() call nor SDL_CreateRGBSurface() etc functions shall contain SDL_HWSURFACE flags.
 The BPP in SDL_SetVideoMode() shall be set to the same value you've specified in ChangeAppSettings.sh,
-and audio format - to AUDIO_S8 or AUDIO_S16.
+and audio format - to AUDIO_S8 or AUDIO_S16. Also bear in mind that 16-bit BPP is always faster than 24 or 32-bit,
+even on good devices, because most GFX chips on Android do not have separate RAM, and use system RAM instead,
+so with 16 bit color mode you'll get lesser memory copying operations.
 
 The native Android 16-bit pixel format is RGB_565, even for OpenGL, not BGR_565 as all other OpenGL implementations have.
 
@@ -97,13 +101,34 @@ SDL_ListModes()[0] will always return native screen resolution.
 Also make sure that your HW textures are not wider than 1024 pixels, or it will fail to allocate such
 texture on HTC G1, and other low-end devices. Software surfaces may be of any size of course.
 
-If you want HW acceleration - just use OpenGL, the HW acceleration by SDL has some limitations:
+If you want HW acceleration - just use OpenGL, that's the easiest and most cross-platform way,
+however if you'll use on-screen keyboard (even the text input button) the OpenGL state will get
+screwed after each frame - after each SDL_Flip() you'll need to call:
+
+glEnable(GL_TEXTURE_2D);
+glBindTexture(GL_TEXTURE_2D, your_texture_id);
+glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+glEnable(GL_BLEND);
+glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+Previously I've got the code to save/restore OpenGL state, but it doens't work on every device -
+you may wish to uncomment it inside file SDL_touchscreenkeyboard.c in functions beginDrawingTex() and endDrawingTex().
+
+If you don't use on-screen keyboard you don't need to reinit OpenGL state - set following in AndroidAppSettings.cfg:
+AppNeedsArrowKeys=n
+AppNeedsTextInput=n
+AppTouchscreenKeyboardKeysAmount=0
+
+SDL supports HW acceleration, however it has many limitations:
 You should use 16-bit color depth.
 You cannot blit SW surface to screen, it should be only HW surface.
 You can use colorkey, per-surface alpha and per-pixel alpha with HW surfaces.
-If you're using SDL 1.3 always use SDL_Texture, if you'll be using SDL_Surface with SDL 1.3 it will switch to SW mode.
+If you're using SDL 1.3 always use SDL_Texture, if you'll be using SDL_Surface or call SDL_SetVideoMode()
+with SDL 1.3 it will automatically switch to SW mode.
 Also the screen is always double-buffered, and after each SDL_Flip() there is garbage in pixel buffer,
 so forget about dirty rects and partial screen updates - you have to re-render whole picture each frame.
+Calling SDL_UpdateRects() just calls SDL_Flip() internally, updating the whole screen at once.
 Single-buffer rendering might be possible with techniques like glFramebufferTexture2D(),
 however it is not present on all devices, so I won't do that.
 Basically your code should be like this for SDL 1.2 (also set SwVideoMode=n in AndroidAppSetings.cfg):
@@ -168,7 +193,8 @@ int i = (int *) p; // We have garbage inside i now
 memcpy( &i, p, sizeof(int) ); // The correct way to dereference a non-aligned pointer
 
 This compiler flags will catch most obvious errors, you may add them to AppCflags var in settings:
--Werror=strict-aliasing -Werror=cast-align -Werror=pointer-arith -Werror=address
+-Wstrict-aliasing -Wcast-align -Wpointer-arith -Waddress
+Also beware of the NDK - some system headers contain the code that triggers that warnings.
 
 The application will automatically get moved to SD-card on Android 2.2 or newer,
 (or you can install app2sd for older, but rooted phones),
@@ -275,8 +301,13 @@ The debugging of multi-threaded apps is not supported with NDK r4 or r4b, you'll
 and Android 2.3 emulator or device.
 To debug your application go to "project" dir and launch command
 	ndk-gdb --verbose --start --force
-then if it fails enter command
-	target remote:5039
+then you can run usual GDB commands, like:
+	cont - continue execution.
+	info threads - list all threads, there will usually be like 11 of them with thread 10 being your main thread.
+	bt - list stack trace / call hierarchy
+	up / down - go up / down in the call hierarchy
+	print var - print the value of variable "var"
+
 You can also debug by adding extensive logs to your app:
 	__android_log_print(ANDROID_LOG_INFO, "My App", "We somehow reached execution point #224");
 and then watching "adb logcat" output.
@@ -303,9 +334,9 @@ I/DEBUG   (   51):          #05  pc 0002d080  /data/data/de.schwardtnet.alienbla
 2. Go to project/bin/ndk/local/armeabi dir, find there the library mentioned in stacktrace
 (libsdl.so in our example), copy the address of the first line of stacktrace (0002ca00), and execute command
 
-<your NDK path>/build/prebuilt/linux-x86/arm-eabi-4.4.0/bin/arm-eabi-gdb libsdl.so -ex "list *0x0002ca00"
+<your NDK path>/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gdb libsdl.so -ex "list *0x0002ca00" -ex "list *0x00028b6e" -ex "list *0x0002d080"
 
-It will output the exact line in your source where the application crashed.
+It will output the exact line in your source where the application crashed, and some stack trace if available.
 
 If your application does not work for unknown reasons, there may be the case when it exports some symbol
 that clash with exports from system libraries - run checkExports.sh to check this.
@@ -319,30 +350,32 @@ that means you're allocating huge data buffer in heap (that may be C static or g
 run checkStaticDataSize.sh to see the size of all static symbols inside your application,
 heap memory limit on most phones is 24 Mb.
 
+If the error string is like this:
+
+I/dalvikvm(18105): Unable to dlopen(/data/data/net.olofson.kobodl/lib/libapplication.so): Cannot load library: link_image[1995]: failed to link libapplication.so
+
+that means your application contains undefined symbols, absent in the system libraries, 
+you may check for all missing symbols by running script checkMissing.sh .
+That typically happens because of linking to the dynamic libstdc++ which is not included into the .apk file -
+specify "-lgnustl_static" in the linker flags to fix that.
+
+
 License information
 ===================
 
-The SDL port itself is licensed under LGPL, so you may use it for commercial purposes
+The SDL 1.2 port is licensed under LGPL, so you may use it for commercial purposes
 without releasing source code, however to fullfill LGPL requirements you'll have to publish
-the file AndroidAppSettings.cfg to allow linking other version of SDL with the libraries
+the file AndroidAppSettings.cfg to allow linking other version of libsdl-1.2.so with the libraries
 in the binary package you're distributing - typically libapplication.so and other
 closed-source libraries in your .apk file.
 
-The Java source files are licensed under zlib license, which means
-you may modify them as you like without releasing source code,
-as long as your binary package can be linked and executed without error
-against the SDL shared library compiled from the original source code.
-This implies that you may not modify Java-to-C interface,
-or you'll have to publish all your changes to both C and Java files.
-
-Please note that SDL 1.3 Andorid port from libsdl.org has changed it's license type
-to zlib, however I've used older release of SDL 1.3 to create this port,
-and I cannot switch license type for the C source files I didn't write myself.
+The SDL 1.3 port and Java source files are licensed under zlib license, which means
+you may modify them as you like without releasing source code.
 
 The libraries under project/jni have their own license, I've tried to compile all LGPL-ed libs
 as shared libs but you should anyway inspect the licenses of the libraries you're linking to.
 libmad and liblzo2 are licensed under GPL, so if you're planning to make commercial app you should avoid
-using them, otherwise you'll have to release your application sources under GPL too.
+using them, otherwise you'll have to release your whole application sources under GPL too.
 
 The "Ultimate Droid" on-screen keyboard theme by Sean Stieber is licensed under Creative Commons - Attribution license.
 The "Simple Theme" on-screen keyboard theme by Dmitry Matveev is licensed under zlib license.

@@ -22,6 +22,8 @@ struct SdlCompat_AcceleratedSurface
 	SDL_PixelFormat * format;
 };
 
+extern SDL_Renderer * SDL_global_renderer;
+
 static inline SdlCompat_AcceleratedSurface * SdlCompat_CreateAcceleratedSurface(SDL_Surface * surface)
 {
 	SdlCompat_AcceleratedSurface * ret = new SdlCompat_AcceleratedSurface();
@@ -31,13 +33,15 @@ static inline SdlCompat_AcceleratedSurface * SdlCompat_CreateAcceleratedSurface(
 	ret->w = surface->w;
 	ret->h = surface->h;
 	ret->format = new SDL_PixelFormat();
-	*(ret->format) = *(surface->format);
+	memcpy(ret->format, surface->format, sizeof(SDL_PixelFormat));
 
 	format = SDL_PIXELFORMAT_RGB565;
 	if( surface->flags & SDL_SRCCOLORKEY )
-		format = SDL_PIXELFORMAT_RGBA5551;
+	{
+		format = SDL_PIXELFORMAT_RGBA4444;
+	}
 
-	ret->t = SDL_CreateTextureFromSurface(format, surface);
+	ret->t = SDL_CreateTextureFromSurface(SDL_global_renderer, surface);
 	
 	if( ! ret->t )
 	{
@@ -45,21 +49,23 @@ static inline SdlCompat_AcceleratedSurface * SdlCompat_CreateAcceleratedSurface(
 		return ret;
 	}
 
+	SDL_SetTextureBlendMode( ret->t, SDL_BLENDMODE_BLEND );
+	//SDL_SetTextureAlphaMod( ret->t, SDL_ALPHA_OPAQUE );
+	SDL_SetTextureAlphaMod( ret->t, 128 );
 	if( surface->flags & SDL_SRCALPHA )
 	{
-		SDL_SetTextureBlendMode( ret->t, SDL_BLENDMODE_BLEND );
 		Uint8 alpha = 128;
 		if( SDL_GetSurfaceAlphaMod( surface, &alpha ) < 0 )
 			alpha = 128;
 		SDL_SetTextureAlphaMod( ret->t, alpha );
 	}
-	
+
 	return ret;
 };
 
 static inline int SDL_BlitSurface( SdlCompat_AcceleratedSurface * src, SDL_Rect * srcR, SdlCompat_AcceleratedSurface * unused, SDL_Rect * destR )
 {
-	return SDL_RenderCopy(src->t, srcR, destR);
+	return SDL_RenderCopy(SDL_global_renderer, src->t, srcR, destR);
 };
 
 static inline void SDL_FreeSurface(SdlCompat_AcceleratedSurface * surface)
@@ -71,15 +77,14 @@ static inline void SDL_FreeSurface(SdlCompat_AcceleratedSurface * surface)
 
 static inline void SDL_FillRect( SdlCompat_AcceleratedSurface * unused, const SDL_Rect* rect, Uint32 color )
 {
-	Uint8 r, g, b, a;
-	SDL_GetRGBA( color, SDL_GetVideoSurface()->format, &r, &g, &b, &a );
-	SDL_SetRenderDrawColor(r, g, b, SDL_ALPHA_OPAQUE /* a */);
-	SDL_RenderFillRect(rect);
+	Uint8 r = color & 0xff, g = (color >> 8) & 0xff, b = (color >> 16) & 0xff;
+	SDL_SetRenderDrawColor(SDL_global_renderer, r, g, b, SDL_ALPHA_OPAQUE /* a */);
+	SDL_RenderFillRect(SDL_global_renderer, rect);
 };
 
 static inline int SDL_Flip(SdlCompat_AcceleratedSurface * unused)
 {
-	SDL_RenderPresent();
+	SDL_RenderPresent(SDL_global_renderer);
 	return 0;
 };
 
@@ -94,11 +99,8 @@ static inline void SdlCompat_ReloadSurfaceToVideoMemory(SdlCompat_AcceleratedSur
 {
 	// Allocate accelerated surface even if that means loss of color quality
 	Uint32 format;
-	format = SDL_PIXELFORMAT_RGB565;
-
-	if( src->flags & SDL_SRCCOLORKEY )
-		format = SDL_PIXELFORMAT_RGBA5551;
-	//surface->t = SDL_CreateTextureFromSurface(format, src);
+	int access, w, h;
+	SDL_QueryTexture(surface->t, &format, &access, &w, &h);
 	
 	int bpp;
 	Uint32 r,g,b,a;
@@ -107,14 +109,6 @@ static inline void SdlCompat_ReloadSurfaceToVideoMemory(SdlCompat_AcceleratedSur
 	SDL_Surface * converted = SDL_ConvertSurface( src, formatsurf->format, 0 );
 
 	SDL_LockSurface(converted);
-
-	// debug
-	/*
-	for( int x=0; x<converted->w; x++ )
-	for( int y=0; y<converted->h; y++ )
-		*(Sint16 *) ( ((Uint8 *)converted->pixels) + y*converted->pitch + x*2 ) = y*4;
-	*/
-	// end debug
 
 	SDL_UpdateTexture( surface->t, NULL, converted->pixels, converted->pitch );
 	SDL_UnlockSurface(converted);

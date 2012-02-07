@@ -9,7 +9,7 @@ $(error Please define SDL_JAVA_PACKAGE_PATH to the path of your Java package wit
 endif
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
-LOCAL_CFLAGS := -O3 \
+LOCAL_CFLAGS := -O3 -D__ANDROID__ -DANDROID \
 	-DSDL_JAVA_PACKAGE_PATH=$(SDL_JAVA_PACKAGE_PATH) \
 	-DSDL_CURDIR_PATH=\"$(SDL_CURDIR_PATH)\" \
 	-DSDL_TRACKBALL_KEYUP_DELAY=$(SDL_TRACKBALL_KEYUP_DELAY) \
@@ -38,10 +38,13 @@ SDL_SRCS := \
 	src/audio/android/*.c \
 	src/cdrom/dummy/*.c \
 	src/video/android/*.c \
-	src/video/android/*.cpp \
 	src/haptic/dummy/*.c \
 	src/loadso/dlopen/*.c \
-	src/atomic/dummy/*.c \
+	src/atomic/*.c \
+	src/render/*.c \
+	src/render/opengles/*.c \
+	src/render/software/*.c
+
 
 # TODO: use libcutils for atomic operations, but it's not included in NDK
 
@@ -57,9 +60,5 @@ LOCAL_CPP_EXTENSION := .cpp
 LOCAL_SRC_FILES := $(foreach F, $(SDL_SRCS), $(addprefix $(dir $(F)),$(notdir $(wildcard $(LOCAL_PATH)/$(F)))))
 
 LOCAL_LDLIBS := -lGLESv1_CM -ldl -llog
-
-ifneq ($(CRYSTAX_R5_TOOLCHAIN),)
-LOCAL_LDLIBS += -L$(NDK_PATH)/sources/crystax/libs/armeabi -lcrystax_static
-endif
 
 include $(BUILD_SHARED_LIBRARY)

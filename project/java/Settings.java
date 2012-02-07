@@ -56,6 +56,9 @@ import android.widget.TextView;
 import android.widget.EditText;
 import android.text.Editable;
 import android.text.SpannedString;
+import android.content.Intent;
+import android.app.PendingIntent;
+import android.app.AlarmManager;
 
 
 // TODO: too much code here, split into multiple files, possibly auto-generated menus?
@@ -84,7 +87,7 @@ class Settings
 			out.writeInt(Globals.AudioBufferConfig);
 			out.writeInt(Globals.TouchscreenKeyboardTheme);
 			out.writeInt(Globals.RightClickMethod);
-			out.writeBoolean(Globals.ShowScreenUnderFinger);
+			out.writeInt(Globals.ShowScreenUnderFinger);
 			out.writeInt(Globals.LeftClickMethod);
 			out.writeBoolean(Globals.MoveMouseWithJoystick);
 			out.writeBoolean(Globals.ClickMouseWithDpad);
@@ -143,6 +146,7 @@ class Settings
 				out.writeBoolean(Globals.OptionalDataDownload[i]);
 			out.writeBoolean(Globals.BrokenLibCMessageShown);
 			out.writeInt(Globals.TouchscreenKeyboardDrawSize);
+			out.writeInt(p.getApplicationVersion());
 
 			out.close();
 			settingsLoaded = true;
@@ -210,7 +214,7 @@ class Settings
 			Globals.AudioBufferConfig = settingsFile.readInt();
 			Globals.TouchscreenKeyboardTheme = settingsFile.readInt();
 			Globals.RightClickMethod = settingsFile.readInt();
-			Globals.ShowScreenUnderFinger = settingsFile.readBoolean();
+			Globals.ShowScreenUnderFinger = settingsFile.readInt();
 			Globals.LeftClickMethod = settingsFile.readInt();
 			Globals.MoveMouseWithJoystick = settingsFile.readBoolean();
 			Globals.ClickMouseWithDpad = settingsFile.readBoolean();
@@ -279,11 +283,27 @@ class Settings
 				Globals.OptionalDataDownload[i] = settingsFile.readBoolean();
 			Globals.BrokenLibCMessageShown = settingsFile.readBoolean();
 			Globals.TouchscreenKeyboardDrawSize = settingsFile.readInt();
+			int cfgVersion = settingsFile.readInt();
+			System.out.println("libSDL: old cfg version " + cfgVersion + ", our version " + p.getApplicationVersion());
+			if( Globals.ResetSdlConfigForThisVersion && cfgVersion < p.getApplicationVersion() )
+			{
+				System.out.println("libSDL: old cfg version " + cfgVersion + ", our version " + p.getApplicationVersion() + " and we need to clean up config file");
+				// Delete settings file, and restart the application
+				settingsFile.close();
+				ObjectOutputStream out = new ObjectOutputStream(p.openFileOutput( SettingsFileName, p.MODE_WORLD_READABLE ));
+				out.writeInt(-1);
+				out.close();
+				new File( p.getFilesDir() + "/" + SettingsFileName ).delete();
+				PendingIntent intent = PendingIntent.getActivity(p, 0, new Intent(p.getIntent()), p.getIntent().getFlags());
+				AlarmManager mgr = (AlarmManager) p.getSystemService(Context.ALARM_SERVICE);
+				mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, intent);
+				System.exit(0);
+			}
 			
 			settingsLoaded = true;
 
 			System.out.println("libSDL: Settings.Load(): loaded settings successfully");
-			
+			settingsFile.close();
 			return;
 			
 		} catch( FileNotFoundException e ) {
@@ -1165,15 +1185,61 @@ class Settings
 		}
 		void run (final MainActivity p)
 		{
-			CharSequence[] items = {	p.getResources().getString(R.string.display_size_large),
-										p.getResources().getString(R.string.display_size_small) };
+			CharSequence[] items = {
+										p.getResources().getString(R.string.display_size_tiny_touchpad),
+										p.getResources().getString(R.string.display_size_tiny),
+										p.getResources().getString(R.string.display_size_small),
+										p.getResources().getString(R.string.display_size_small_touchpad),
+										p.getResources().getString(R.string.display_size_large),
+									};
+			int _size_tiny_touchpad = 0;
+			int _size_tiny = 1;
+			int _size_small = 2;
+			int _size_small_touchpad = 3;
+			int _size_large = 4;
+			int _more_options = 5;
+
+			if( ! Globals.SwVideoMode )
+			{
+				CharSequence[] items2 = {
+											p.getResources().getString(R.string.display_size_small_touchpad),
+											p.getResources().getString(R.string.display_size_large),
+										};
+				items = items2;
+				_size_small_touchpad = 0;
+				_size_large = 1;
+				_size_tiny_touchpad = _size_tiny = _size_small = 1000;
+
+			}
 			if( firstStart )
 			{
-				CharSequence[] items2 = {	p.getResources().getString(R.string.display_size_large),
+				CharSequence[] items2 = {
+											p.getResources().getString(R.string.display_size_tiny_touchpad),
+											p.getResources().getString(R.string.display_size_tiny),
 											p.getResources().getString(R.string.display_size_small),
-											p.getResources().getString(R.string.show_more_options) };
+											p.getResources().getString(R.string.display_size_small_touchpad),
+											p.getResources().getString(R.string.display_size_large),
+											p.getResources().getString(R.string.show_more_options),
+										};
 				items = items2;
+				if( ! Globals.SwVideoMode )
+				{
+					CharSequence[] items3 = {
+												p.getResources().getString(R.string.display_size_small_touchpad),
+												p.getResources().getString(R.string.display_size_large),
+												p.getResources().getString(R.string.show_more_options),
+											};
+					items = items3;
+					_more_options = 3;
+				}
 			}
+			// Java is so damn worse than C++11
+			final int size_tiny_touchpad = _size_tiny_touchpad;
+			final int size_tiny = _size_tiny;
+			final int size_small = _size_small;
+			final int size_small_touchpad = _size_small_touchpad;
+			final int size_large = _size_large;
+			final int more_options = _more_options;
 
 			AlertDialog.Builder builder = new AlertDialog.Builder(p);
 			builder.setTitle(R.string.display_size);
@@ -1182,29 +1248,37 @@ class Settings
 				public void onClick(DialogInterface dialog, int item) 
 				{
 					dialog.dismiss();
-					if( item == 0 )
+					if( item == size_large )
 					{
 						Globals.LeftClickMethod = Mouse.LEFT_CLICK_WITH_TAP_OR_TIMEOUT;
 						Globals.RelativeMouseMovement = false;
-						Globals.ShowScreenUnderFinger = false;
+						Globals.ShowScreenUnderFinger = Mouse.ZOOM_NONE;
 					}
-					if( item == 1 )
+					if( item == size_small )
 					{
-						if( Globals.SwVideoMode )
-						{
-							Globals.LeftClickMethod = Mouse.LEFT_CLICK_NEAR_CURSOR;
-							Globals.RelativeMouseMovement = false;
-							Globals.ShowScreenUnderFinger = true;
-						}
-						else
-						{
-							// OpenGL does not support magnifying glass
-							Globals.LeftClickMethod = Mouse.LEFT_CLICK_WITH_TAP_OR_TIMEOUT;
-							Globals.RelativeMouseMovement = true;
-							Globals.ShowScreenUnderFinger = false;
-						}
+						Globals.LeftClickMethod = Mouse.LEFT_CLICK_NEAR_CURSOR;
+						Globals.RelativeMouseMovement = false;
+						Globals.ShowScreenUnderFinger = Mouse.ZOOM_MAGNIFIER;
 					}
-					if( item == 2 )
+					if( item == size_small_touchpad )
+					{
+						Globals.LeftClickMethod = Mouse.LEFT_CLICK_WITH_TAP_OR_TIMEOUT;
+						Globals.RelativeMouseMovement = true;
+						Globals.ShowScreenUnderFinger = Mouse.ZOOM_NONE;
+					}
+					if( item == size_tiny )
+					{
+						Globals.LeftClickMethod = Mouse.LEFT_CLICK_NEAR_CURSOR;
+						Globals.RelativeMouseMovement = false;
+						Globals.ShowScreenUnderFinger = Mouse.ZOOM_SCREEN_TRANSFORM;
+					}
+					if( item == size_tiny_touchpad )
+					{
+						Globals.LeftClickMethod = Mouse.LEFT_CLICK_WITH_TAP_OR_TIMEOUT;
+						Globals.RelativeMouseMovement = true;
+						Globals.ShowScreenUnderFinger = Mouse.ZOOM_FULLSCREEN_MAGNIFIER;
+					}
+					if( item == more_options )
 					{
 						menuStack.clear();
 						new MainMenu().run(p);
@@ -1213,12 +1287,16 @@ class Settings
 					goBack(p);
 				}
 			}
-			if( firstStart )
-				builder.setItems(items, new ClickListener());
+			builder.setItems(items, new ClickListener());
+			/*
 			else
 				builder.setSingleChoiceItems(items,
-					(Globals.LeftClickMethod == Mouse.LEFT_CLICK_WITH_TAP_OR_TIMEOUT && ! Globals.RelativeMouseMovement) ? 0 : 1,
+					Globals.ShowScreenUnderFinger == Mouse.ZOOM_NONE ?
+					( Globals.RelativeMouseMovement ? Globals.SwVideoMode ? 2 : 1 : 0 ) :
+					( Globals.ShowScreenUnderFinger == Mouse.ZOOM_MAGNIFIER && Globals.SwVideoMode ) ? 1 :
+					Globals.ShowScreenUnderFinger + 1,
 					new ClickListener());
+			*/
 			builder.setOnCancelListener(new DialogInterface.OnCancelListener()
 			{
 				public void onCancel(DialogInterface dialog)
@@ -1422,14 +1500,12 @@ class Settings
 		void run (final MainActivity p)
 		{
 			CharSequence[] items = {
-				p.getResources().getString(R.string.pointandclick_showcreenunderfinger2),
 				p.getResources().getString(R.string.pointandclick_joystickmouse),
 				p.getResources().getString(R.string.click_with_dpadcenter),
 				p.getResources().getString(R.string.pointandclick_relative)
 			};
 
 			boolean defaults[] = { 
-				Globals.ShowScreenUnderFinger,
 				Globals.MoveMouseWithJoystick,
 				Globals.ClickMouseWithDpad,
 				Globals.RelativeMouseMovement
@@ -1443,12 +1519,10 @@ class Settings
 				public void onClick(DialogInterface dialog, int item, boolean isChecked) 
 				{
 					if( item == 0 )
-						Globals.ShowScreenUnderFinger = isChecked;
-					if( item == 1 )
 						Globals.MoveMouseWithJoystick = isChecked;
-					if( item == 2 )
+					if( item == 1 )
 						Globals.ClickMouseWithDpad = isChecked;
-					if( item == 3 )
+					if( item == 2 )
 						Globals.RelativeMouseMovement = isChecked;
 				}
 			});
@@ -2274,12 +2348,10 @@ class Settings
 		{
 			CharSequence[] items = {
 				p.getResources().getString(R.string.pointandclick_keepaspectratio),
-				p.getResources().getString(R.string.pointandclick_showcreenunderfinger2),
 				p.getResources().getString(R.string.video_smooth)
 			};
 			boolean defaults[] = { 
 				Globals.KeepAspectRatio,
-				Globals.ShowScreenUnderFinger,
 				Globals.SmoothVideo
 			};
 
@@ -2287,13 +2359,11 @@ class Settings
 			{
 				CharSequence[] items2 = {
 					p.getResources().getString(R.string.pointandclick_keepaspectratio),
-					p.getResources().getString(R.string.pointandclick_showcreenunderfinger2),
 					p.getResources().getString(R.string.video_smooth),
 					p.getResources().getString(R.string.video_separatethread),
 				};
 				boolean defaults2[] = { 
 					Globals.KeepAspectRatio,
-					Globals.ShowScreenUnderFinger,
 					Globals.SmoothVideo,
 					Globals.MultiThreadedVideo
 				};
@@ -2305,11 +2375,9 @@ class Settings
 			{
 				CharSequence[] items2 = {
 					p.getResources().getString(R.string.pointandclick_keepaspectratio),
-					p.getResources().getString(R.string.pointandclick_showcreenunderfinger2)
 				};
 				boolean defaults2[] = { 
 					Globals.KeepAspectRatio,
-					Globals.ShowScreenUnderFinger
 				};
 				items = items2;
 				defaults = defaults2;
@@ -2324,10 +2392,8 @@ class Settings
 					if( item == 0 )
 						Globals.KeepAspectRatio = isChecked;
 					if( item == 1 )
-						Globals.ShowScreenUnderFinger = isChecked;
-					if( item == 2 )
 						Globals.SmoothVideo = isChecked;
-					if( item == 3 )
+					if( item == 2 )
 						Globals.MultiThreadedVideo = isChecked;
 				}
 			});
@@ -2371,7 +2437,7 @@ class Settings
 			nativeSetTrackballUsed();
 		if( Globals.AppUsesMouse )
 			nativeSetMouseUsed( Globals.RightClickMethod,
-								Globals.ShowScreenUnderFinger ? 1 : 0,
+								Globals.ShowScreenUnderFinger,
 								Globals.LeftClickMethod,
 								Globals.MoveMouseWithJoystick ? 1 : 0,
 								Globals.ClickMouseWithDpad ? 1 : 0,
@@ -2493,6 +2559,7 @@ class Settings
 													int leftClickTimeout, int rightClickTimeout,
 													int relativeMovement, int relativeMovementSpeed,
 													int relativeMovementAccel, int showMouseCursor);
+	public static native void nativeSetExternalMouseDetected();
 	private static native void nativeSetJoystickUsed();
 	private static native void nativeSetMultitouchUsed();
 	private static native void nativeSetTouchscreenKeyboardUsed();

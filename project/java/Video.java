@@ -45,6 +45,7 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.content.res.Resources;
 import android.content.res.AssetManager;
+import android.widget.Toast;
 
 import android.widget.TextView;
 import java.lang.Thread;
@@ -78,10 +79,16 @@ class Mouse
 	public static final int SDL_FINGER_MOVE = 2;
 	public static final int SDL_FINGER_HOVER = 3;
 
+	public static final int ZOOM_NONE = 0;
+	public static final int ZOOM_MAGNIFIER = 1;
+	public static final int ZOOM_SCREEN_TRANSFORM = 2;
+	public static final int ZOOM_FULLSCREEN_MAGNIFIER = 3;
 }
 
 abstract class DifferentTouchInput
 {
+	public static boolean ExternalMouseDetected = true;
+
 	public static DifferentTouchInput getInstance()
 	{
 		boolean multiTouchAvailable1 = false;
@@ -218,8 +225,27 @@ abstract class DifferentTouchInput
 						if( touchEvents[id].down )
 							action = Mouse.SDL_FINGER_MOVE;
 						else
+						if( android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.HONEYCOMB_MR1 )
+						{
+							// Noneycomb has no excuse for sending such hackish mouse events, it has a dedicated ACTION_HOVER_MOVE event
 							action = Mouse.SDL_FINGER_DOWN;
-						touchEvents[id].down = true;
+							touchEvents[id].down = true;
+						}
+						else
+						{
+							// Beagleboard with Android 2.3.3 sends ACTION_MOVE for USB mouse movements, without sending ACTION_DOWN first
+							// So we're guessing if we have Android 2.X and USB mouse, if there are no other fingers touching the screen
+							action = Mouse.SDL_FINGER_HOVER;
+							for( int iii = 0; iii < touchEventMax; iii++ )
+							{
+								if( touchEvents[iii].down )
+								{
+									action = Mouse.SDL_FINGER_DOWN;
+									touchEvents[id].down = true;
+									break;
+								}
+							}
+						}
 						touchEvents[id].x = (int)event.getX(ii);
 						touchEvents[id].y = (int)event.getY(ii);
 						touchEvents[id].pressure = (int)(event.getPressure(ii) * 1000.0);
@@ -242,6 +268,12 @@ abstract class DifferentTouchInput
 				touchEvents[0].size = 0;
 				DemoGLSurfaceView.nativeMouse( touchEvents[0].x, touchEvents[0].y, action, 0, touchEvents[0].pressure, touchEvents[0].size );
 			}
+			if( action == Mouse.SDL_FINGER_HOVER && !ExternalMouseDetected )
+			{
+				ExternalMouseDetected = true;
+				Settings.nativeSetExternalMouseDetected();
+				Toast.makeText(MainActivity.instance, R.string.hardware_mouse_detected, Toast.LENGTH_SHORT).show();
+			}
 		}
 	}
 }
@@ -252,36 +284,37 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	public DemoRenderer(MainActivity _context)
 	{
 		context = _context;
-		// Froyo does not flood touch events, and syncs to the screen update,
-		// so we should not use event rate limiter, or we'll get some multitouch events largely outdated
-		// Another test on Tegra development board shows that with USB mouse FPS drops in half
-		// when mouse is moved, with and without ratelimiter
-		if( android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.FROYO )
-			mRatelimitTouchEvents = true;
-		System.out.println("libSDL: DemoRenderer: RatelimitTouchEvents " + mRatelimitTouchEvents );
 	}
 	
 	public void onSurfaceCreated(GL10 gl, EGLConfig config) {
 		System.out.println("libSDL: DemoRenderer.onSurfaceCreated(): paused " + mPaused + " mFirstTimeStart " + mFirstTimeStart );
 		mGlSurfaceCreated = true;
+		mGl = gl;
 		if( ! mPaused && ! mFirstTimeStart )
 			nativeGlContextRecreated();
 		mFirstTimeStart = false;
 	}
 
 	public void onSurfaceChanged(GL10 gl, int w, int h) {
+		System.out.println("libSDL: DemoRenderer.onSurfaceChanged(): paused " + mPaused + " mFirstTimeStart " + mFirstTimeStart );
 		mWidth = w;
 		mHeight = h;
+		mGl = gl;
 		nativeResize(w, h, Globals.KeepAspectRatio ? 1 : 0);
 	}
 	
 	public void onSurfaceDestroyed() {
+		System.out.println("libSDL: DemoRenderer.onSurfaceDestroyed(): paused " + mPaused + " mFirstTimeStart " + mFirstTimeStart );
 		mGlSurfaceCreated = false;
 		mGlContextLost = true;
 		nativeGlContextLost();
 	};
 
 	public void onDrawFrame(GL10 gl) {
+
+		mGl = gl;
+		DrawLogo(mGl);
+		SwapBuffers();
 
 		nativeInitJavaCallbacks();
 		
@@ -319,7 +352,8 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		}
 
 		Settings.Apply(context);
-		Globals.UseAccelerometerAsArrowKeys = true; // GJT: Fix for bug when the startup screen is disabled
+//Globals.UseAccelerometerAsArrowKeys = true; // GJT: Fix for bug when the startup screen is disabled
+		DifferentTouchInput.ExternalMouseDetected = false;
 		accelerometer = new AccelerometerReader(context);
 
 		// GJT: Get APK path 	
@@ -344,18 +378,17 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 
 	public int swapBuffers() // Called from native code
 	{
-		if( mRatelimitTouchEvents )
+		synchronized(this)
 		{
-			synchronized(this)
-			{
-				this.notify();
-			}
+			this.notify();
 		}
 		if( ! super.SwapBuffers() && Globals.NonBlockingSwapBuffers )
 			return 0;
 		if(mGlContextLost) {
 			mGlContextLost = false;
 			Settings.SetupTouchscreenKeyboardGraphics(context); // Reload on-screen buttons graphics
+			DrawLogo(mGl);
+			super.SwapBuffers();
 		}
 		
 		return 1;
@@ -394,6 +427,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	}
 	public void DrawLogo(GL10 gl)
 	{
+		System.out.println("libSDL: DrawLogo");
 		BitmapDrawable bmp = null;
 		try
 		{
@@ -406,7 +440,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		int width = bmp.getBitmap().getWidth();
 		int height = bmp.getBitmap().getHeight();
 		ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * width * height);
-		byteBuffer.order(ByteOrder.BIG_ENDIAN);
+		//byteBuffer.order(ByteOrder.BIG_ENDIAN);
 		bmp.getBitmap().copyPixelsToBuffer(byteBuffer);
 		byteBuffer.position(0);
 
@@ -463,6 +497,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	private MainActivity context = null;
 	public AccelerometerReader accelerometer = null;
 	
+	private GL10 mGl = null;
 	private EGL10 mEgl = null;
 	private EGLDisplay mEglDisplay = null;
 	private EGLSurface mEglSurface = null;
@@ -473,7 +508,6 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 	private boolean mFirstTimeStart = true;
 	public int mWidth = 0;
 	public int mHeight = 0;
-	public boolean mRatelimitTouchEvents = false;
 }
 
 class DemoGLSurfaceView extends GLSurfaceView_SDL {
@@ -491,15 +525,15 @@ class DemoGLSurfaceView extends GLSurfaceView_SDL {
 	{
 		touchInput.process(event);
 		// Wait a bit, and try to synchronize to app framerate, or event thread will eat all CPU and we'll lose FPS
+		// With Froyo the rate of touch events is limited, but they are arriving faster then we're redrawing anyway
 		if(( event.getAction() == MotionEvent.ACTION_MOVE ||
-			event.getAction() == MotionEvent.ACTION_HOVER_MOVE) &&
-			mRenderer.mRatelimitTouchEvents )
+			event.getAction() == MotionEvent.ACTION_HOVER_MOVE))
 		{
 			synchronized(mRenderer)
 			{
 				try
 				{
-					mRenderer.wait(300L);
+					mRenderer.wait(300L); // And sometimes the app decides not to render at all, so this timeout should not be big.
 				} catch (InterruptedException e) { }
 			}
 		}

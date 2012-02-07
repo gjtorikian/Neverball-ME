@@ -226,7 +226,7 @@ fi
 
 if [ -z "$ShowMouseCursor" -o -z "$AUTO" ]; then
 echo
-echo -n "Show SDL mouse cursor, for applicaitons that do not draw it (y) or (n) ($ShowMouseCursor): "
+echo -n "Show SDL mouse cursor, for applicaitons that do not draw cursor at all (y) or (n) ($ShowMouseCursor): "
 read var
 if [ -n "$var" ] ; then
 	ShowMouseCursor="$var"
@@ -405,8 +405,8 @@ fi
 
 if [ -z "$MultiABI" -o -z "$AUTO" ]; then
 echo
-echo "Enable multi-ABI binary, with hardware FPU support - "
-echo -n "it will also work on old devices, but .apk size is 2x bigger (y) or (n) ($MultiABI): "
+echo "Enable multi-ABI binary, with hardware FPU support - it will also work on old devices,"
+echo -n "but .apk size is 2x bigger (y) / (n) / (x86) / (all) ($MultiABI): "
 read var
 if [ -n "$var" ] ; then
 	MultiABI="$var"
@@ -430,6 +430,16 @@ echo -n "Application user-visible version name (string) ($AppVersionName): "
 read var
 if [ -n "$var" ] ; then
 	AppVersionName="$var"
+	CHANGED=1
+fi
+fi
+
+if [ -z "$ResetSdlConfigForThisVersion" -o -z "$AUTO" ]; then
+echo
+echo -n "Reset SDL config when updating application to the new version (y) / (n) ($ResetSdlConfigForThisVersion): "
+read var
+if [ -n "$var" ] ; then
+	ResetSdlConfigForThisVersion="$var"
 	CHANGED=1
 fi
 fi
@@ -564,6 +574,7 @@ echo FirstStartMenuOptions=\'$FirstStartMenuOptions\' >> AndroidAppSettings.cfg
 echo MultiABI=$MultiABI >> AndroidAppSettings.cfg
 echo AppVersionCode=$AppVersionCode >> AndroidAppSettings.cfg
 echo AppVersionName=\"$AppVersionName\" >> AndroidAppSettings.cfg
+echo ResetSdlConfigForThisVersion=$ResetSdlConfigForThisVersion >> AndroidAppSettings.cfg
 echo CompiledLibraries=\"$CompiledLibraries\" >> AndroidAppSettings.cfg
 echo CustomBuildScript=$CustomBuildScript >> AndroidAppSettings.cfg
 echo AppCflags=\'$AppCflags\' >> AndroidAppSettings.cfg
@@ -700,6 +711,12 @@ else
 	NonBlockingSwapBuffers=false
 fi
 
+if [ "$ResetSdlConfigForThisVersion" = "y" ] ; then
+	ResetSdlConfigForThisVersion=true
+else
+	ResetSdlConfigForThisVersion=false
+fi
+
 KEY2=0
 for KEY in $RedefinedKeys; do
 	RedefinedKeycodes="$RedefinedKeycodes -DSDL_ANDROID_KEYCODE_$KEY2=$KEY"
@@ -714,9 +731,14 @@ done
 
 if [ "$MultiABI" = "y" ] ; then
 	MultiABI="armeabi armeabi-v7a"
+elif [ "$MultiABI" = "x86" ] ; then
+	MultiABI="armeabi x86"
+elif [ "$MultiABI" = "all" ] ; then
+	MultiABI="all" # Starting form NDK r7
 else
 	MultiABI="armeabi"
 fi
+
 LibrariesToLoad="\\\"sdl-$LibSdlVersion\\\""
 StaticLibraries=`grep 'APP_AVAILABLE_STATIC_LIBS' project/jni/SettingsTemplate.mk | sed 's/.*=\(.*\)/\1/'`
 for lib in $CompiledLibraries; do
@@ -785,6 +807,7 @@ cat project/src/Globals.java | \
 	sed "s/public static boolean AppHandlesJoystickSensitivity = .*;/public static boolean AppHandlesJoystickSensitivity = $AppHandlesJoystickSensitivity;/" | \
 	sed "s/public static boolean AppUsesMultitouch = .*;/public static boolean AppUsesMultitouch = $AppUsesMultitouch;/" | \
 	sed "s/public static boolean NonBlockingSwapBuffers = .*;/public static boolean NonBlockingSwapBuffers = $NonBlockingSwapBuffers;/" | \
+	sed "s/public static boolean ResetSdlConfigForThisVersion = .*;/public static boolean ResetSdlConfigForThisVersion = $ResetSdlConfigForThisVersion;/" | \
 	sed "s/public static int AppTouchscreenKeyboardKeysAmount = .*;/public static int AppTouchscreenKeyboardKeysAmount = $AppTouchscreenKeyboardKeysAmount;/" | \
 	sed "s/public static int AppTouchscreenKeyboardKeysAmountAutoFire = .*;/public static int AppTouchscreenKeyboardKeysAmountAutoFire = $AppTouchscreenKeyboardKeysAmountAutoFire;/" | \
 	sed "s/public static int StartupMenuButtonTimeout = .*;/public static int StartupMenuButtonTimeout = $StartupMenuButtonTimeout;/" | \
@@ -852,8 +875,11 @@ if [ -d "project/jni/application/src/AndroidData" ] ; then
 	echo Copying asset files
 	for F in project/jni/application/src/AndroidData/*; do
 		if [ `cat $F | wc -c` -gt 1048576 ] ; then
-			echo "Error: the file $F is bigger than 1048576 bytes - some Android devices will fail to extract such file\nPlease split your data into several small files, or use HTTP download method"
-			#exit 1
+			echo "Error: the file $F is bigger than 1048576 bytes - some Android devices will fail to extract such file"
+			echo "Please use HTTP download method, or split your data into several small files with command:"
+			echo "split -b 1000000 -d data.zip data.zip"
+			echo "It will create files data.zip00, data.zip01 etc, and SDL will try to search for such files in assets when unpacking data.zip"
+			exit 1
 		fi
 	done
 	cp -r project/jni/application/src/AndroidData/* project/assets/

@@ -73,7 +73,7 @@ static void sol_load_mtrl(fs_file fin, struct b_mtrl *mp)
             { 8, M_ENVIRONMENT },
             { 16, M_ADDITIVE },
             { 32, M_CLAMP_S | M_CLAMP_T },
-            { 64, M_DECAL },
+            { 64, M_DECAL | M_SHADOWED },
             { 128, M_TWO_SIDED }
         };
 
@@ -482,6 +482,8 @@ int sol_load_meta(struct s_base *fp, const char *filename)
     fs_file fin;
     int res = 0;
 
+    memset(fp, 0, sizeof (*fp));
+
     if ((fin = fs_open(filename, "r")))
     {
         res = sol_load_head(fin, fp);
@@ -746,5 +748,19 @@ int sol_stor_base(struct s_base *fp, const char *filename)
     }
     return 0;
 }
+
+/*---------------------------------------------------------------------------*/
+
+const struct path tex_paths[4] = {
+    { "textures/", ".png" },
+    { "textures/", ".jpg" },
+    { "",          ".png" },
+    { "",          ".jpg" }
+};
+
+const struct path mtrl_paths[2] = {
+    { "textures/", "" },
+    { "",          "" }
+};
 
 /*---------------------------------------------------------------------------*/

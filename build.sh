@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Set here your own NDK path if needed
-# export PATH=$PATH:~/src/endless_space/android-ndk-r5b
+# export PATH=$PATH:~/src/endless_space/android-ndk-r7
 NDKBUILDPATH=$PATH
 export `grep "AppFullName=" AndroidAppSettings.cfg`
 if ( grep "package $AppFullName;" project/src/Globals.java > /dev/null && \
@@ -24,6 +24,8 @@ if uname -s | grep -i "windows" > /dev/null ; then
 	MYARCH=windows-x86
 fi
 
+rm -r -f project/bin/* # New Android SDK introduced some lame-ass optimizations to the build system which we should take care about
+
 cd project && env PATH=$NDKBUILDPATH nice -n19 ndk-build V=1 -j4 && \
  { grep "CustomBuildScript=y" ../AndroidAppSettings.cfg > /dev/null && \
    [ -`which ndk-build | grep '/android-ndk-r[56789]'` != - ] && \
@@ -33,6 +35,7 @@ cd project && env PATH=$NDKBUILDPATH nice -n19 ndk-build V=1 -j4 && \
    cp jni/application/src/libapplication.so libs/armeabi && \
    `which ndk-build | sed 's@/ndk-build@@'`/toolchains/arm-linux-androideabi-4.4.3/prebuilt/$MYARCH/bin/arm-linux-androideabi-strip --strip-unneeded libs/armeabi/libapplication.so \
    || true ; } && \
- ant debug # && \
-# test -z "$1" && cd bin && adb uninstall `grep AppFullName ../../AndroidAppSettings.cfg | sed 's/.*=//'` && \
-# adb install -r DemoActivity-debug.apk
+ ant debug && \
+ test -z "$1" && cd bin && \
+ adb install -r MainActivity-debug.apk | grep 'Failure' && \
+ adb uninstall `grep AppFullName ../../AndroidAppSettings.cfg | sed 's/.*=//'` && adb install -r MainActivity-debug.apk

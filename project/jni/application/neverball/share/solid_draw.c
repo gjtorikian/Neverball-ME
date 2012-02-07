@@ -70,8 +70,11 @@ static void sol_transform(const struct s_vary *vary,
 
     q_as_axisangle(e, v, &a);
 
-    glTranslatef(p[0], p[1], p[2]);
-    glRotatef(V_DEG(a), v[0], v[1], v[2]);
+    if (!(p[0] == 0 && p[1] == 0 && p[2] == 0))
+        glTranslatef(p[0], p[1], p[2]);
+
+    if (!((v[0] == 0 && v[1] == 0 && v[2] == 0) || a == 0))
+        glRotatef(V_DEG(a), v[0], v[1], v[2]);
 
     /* Apply the shadow transform to the texture matrix. */
 
@@ -132,11 +135,6 @@ static void sol_transform(const struct s_vary *vary,
 static void sol_load_bill(struct s_draw *draw)
 {
     static const GLfloat data[] = {
-        0.0f,  0.0f, -1.0f, -1.0f,
-        1.0f,  0.0f,  1.0f, -1.0f,
-        0.0f,  1.0f, -1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f,
-
         0.0f,  0.0f, -0.5f,  0.0f,
         1.0f,  0.0f,  0.5f,  0.0f,
         0.0f,  1.0f, -0.5f,  1.0f,
@@ -161,18 +159,12 @@ static void sol_free_bill(struct s_draw *draw)
     glDeleteBuffers_(1, &draw->bill);
 }
 
-static void sol_draw_bill(GLfloat w, GLfloat h, GLboolean edge)
+static void sol_draw_bill(GLboolean edge)
 {
-    glPushMatrix();
-    {
-        glScalef(0.5f * w, 0.5f * h, 1.0f);
-
-        if (edge)
-            glTranslatef(0.0f, 0.5f, 0.0f);
-
+    if (edge)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    }
-    glPopMatrix();
+    else
+        glDrawArrays(GL_TRIANGLE_STRIP, 4, 4);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -189,12 +181,17 @@ static void sol_bill_enable(const struct s_draw *draw)
 
     glBindBuffer_(GL_ARRAY_BUFFER, draw->bill);
 
+    glDisableClientState(GL_NORMAL_ARRAY);
+
     glTexCoordPointer(2, GL_FLOAT, s * 4, (GLvoid *) (    0));
     glVertexPointer  (2, GL_FLOAT, s * 4, (GLvoid *) (s * 2));
 }
 
 static void sol_bill_disable(void)
 {
+    glEnableClientState(GL_NORMAL_ARRAY);
+
+    glBindBuffer_(GL_ARRAY_BUFFER, 0);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -266,19 +263,21 @@ void sol_color_mtrl(struct s_rend *rend, int enable)
     if (enable)
     {
         glEnable(GL_COLOR_MATERIAL);
+
+        rend->color_mtrl = 1;
     }
     else
     {
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
         glDisable(GL_COLOR_MATERIAL);
 
-        /*
-         * Well-behaved code sets color to white before disabling
-         * color material.  This keeps material tracking synchronized
-         * with GL state.
-         */
+        /* This keeps material tracking synchronized with GL state. */
 
         rend->mtrl.d = 0xffffffff;
         rend->mtrl.a = 0xffffffff;
+
+        rend->color_mtrl = 0;
     }
 }
 
@@ -301,9 +300,9 @@ void sol_apply_mtrl(const struct d_mtrl *mp_draw, struct s_rend *rend)
 
     /* Set material properties. */
 
-    if (mp_draw->d != mq_draw->d)
+    if (mp_draw->d != mq_draw->d && !rend->color_mtrl)
         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,   mp_base->d);
-    if (mp_draw->a != mq_draw->a)
+    if (mp_draw->a != mq_draw->a && !rend->color_mtrl)
         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,   mp_base->a);
     if (mp_draw->s != mq_draw->s)
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR,  mp_base->s);
@@ -388,26 +387,17 @@ void sol_apply_mtrl(const struct d_mtrl *mp_draw, struct s_rend *rend)
 
 static GLuint sol_find_texture(const char *name)
 {
-    char png[MAXSTR];
-    char jpg[MAXSTR];
-
+    char path[MAXSTR];
     GLuint o;
+    int i;
 
-    /* Prefer a lossless copy of the texture over a lossy compression. */
+    for (i = 0; i < ARRAYSIZE(tex_paths); i++)
+    {
+        CONCAT_PATH(path, &tex_paths[i], name);
 
-    strncpy(png, name, PATHMAX); strcat(png, ".png");
-    strncpy(jpg, name, PATHMAX); strcat(jpg, ".jpg");
-
-    /* Check for a PNG. */
-
-    if ((o = make_image_from_file(png)))
-        return o;
-
-    /* Check for a JPG. */
-
-    if ((o = make_image_from_file(jpg)))
-        return o;
-
+        if ((o = make_image_from_file(path, IF_MIPMAP)))
+            return o;
+    }
     return 0;
 }
 
@@ -827,19 +817,13 @@ static void sol_draw_all(const struct s_draw *draw, struct s_rend *rend, int p)
 
 void sol_draw_enable(struct s_rend *rend)
 {
+    memset(rend, 0, sizeof (*rend));
+
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-
-    if (tex_env_stage(TEX_STAGE_SHADOW))
-    {
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
-        if (tex_env_stage(TEX_STAGE_CLIP))
-            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
-        tex_env_stage(TEX_STAGE_TEXTURE);
-    }
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     rend->mtrl = default_draw_mtrl;
     rend->flags = default_base_mtrl.fl;
@@ -849,17 +833,7 @@ void sol_draw_disable(struct s_rend *rend)
 {
     sol_apply_mtrl(&default_draw_mtrl, rend);
 
-    if (tex_env_stage(TEX_STAGE_SHADOW))
-    {
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-
-        if (tex_env_stage(TEX_STAGE_CLIP))
-            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-
-        tex_env_stage(TEX_STAGE_TEXTURE);
-    }
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-
     glDisableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -951,6 +925,8 @@ void sol_back(const struct s_draw *draw,
                     float ry = rp->ry[0] + rp->ry[1] * T + rp->ry[2] * T * T;
                     float rz = rp->rz[0] + rp->rz[1] * T + rp->rz[2] * T * T;
 
+                    sol_apply_mtrl(draw->mv + rp->mi, rend);
+
                     glPushMatrix();
                     {
                         if (ry) glRotatef(ry, 0.0f, 1.0f, 0.0f);
@@ -970,12 +946,7 @@ void sol_back(const struct s_draw *draw,
 
                         glScalef(w, h, 1.0f);
 
-                        sol_apply_mtrl(draw->mv + rp->mi, rend);
-
-                        if (rp->fl & B_EDGE)
-                            glDrawArrays(GL_TRIANGLE_STRIP, 4, 4);
-                        else
-                            glDrawArrays(GL_TRIANGLE_STRIP, 8, 4);
+                        sol_draw_bill(rp->fl & B_EDGE);
                     }
                     glPopMatrix();
                 }
@@ -1023,7 +994,9 @@ void sol_bill(const struct s_draw *draw,
                 if (fabsf(ry) > 0.0f) glRotatef(ry, 0.0f, 1.0f, 0.0f);
                 if (fabsf(rz) > 0.0f) glRotatef(rz, 0.0f, 0.0f, 1.0f);
 
-                sol_draw_bill(w, h, GL_FALSE);
+                glScalef(w, h, 1.0f);
+
+                sol_draw_bill(GL_FALSE);
             }
             glPopMatrix();
         }
@@ -1031,7 +1004,7 @@ void sol_bill(const struct s_draw *draw,
     sol_bill_disable();
 }
 
-void sol_fade(const struct s_draw *draw, float k)
+void sol_fade(const struct s_draw *draw, struct s_rend *rend, float k)
 {
     if (k > 0.0f)
     {
@@ -1049,7 +1022,9 @@ void sol_fade(const struct s_draw *draw, float k)
             glColor4f(0.0f, 0.0f, 0.0f, k);
 
             sol_bill_enable(draw);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            sol_apply_mtrl(&default_draw_mtrl, rend);
+            glScalef(2.0f, 2.0f, 1.0f);
+            sol_draw_bill(GL_FALSE);
             sol_bill_disable();
 
             glColor4f(1.0f, 1.0f, 1.0f, 1.0f);

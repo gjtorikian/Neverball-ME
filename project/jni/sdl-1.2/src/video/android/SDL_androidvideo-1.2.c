@@ -389,6 +389,8 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 	/* Set up the new mode framebuffer */
 	SDL_CurrentVideoSurface = current;
 
+	UpdateScreenUnderFingerRect(0,0);
+
 	/* We're done */
 	return(current);
 }
@@ -843,7 +845,7 @@ static int ANDROID_SetHWAlpha(_THIS, SDL_Surface *surface, Uint8 value)
 	return SDL_SetTextureAlphaMod((struct SDL_Texture *)surface->hwdata, value);
 };
 
-static void ANDROID_FlipHWSurfaceInternal()
+static void ANDROID_FlipHWSurfaceInternal(int numrects, SDL_Rect *rects)
 {
 	//__android_log_print(ANDROID_LOG_INFO, "libSDL", "ANDROID_FlipHWSurface()");
 	if( SDL_CurrentVideoSurface->hwdata && SDL_CurrentVideoSurface->pixels && ! ( SDL_CurrentVideoSurface->flags & SDL_HWSURFACE ) )
@@ -853,20 +855,19 @@ static void ANDROID_FlipHWSurfaceInternal()
 		rect.y = 0;
 		rect.w = SDL_CurrentVideoSurface->w;
 		rect.h = SDL_CurrentVideoSurface->h;
-		SDL_UpdateTexture((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rect, SDL_CurrentVideoSurface->pixels, SDL_CurrentVideoSurface->pitch);
-		SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rect, &rect);
-		static int MousePointerAlpha = 255;
-		if(SDL_ANDROID_ShowMouseCursor)
+		if(numrects == 0)
+			SDL_UpdateTexture((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rect, SDL_CurrentVideoSurface->pixels, SDL_CurrentVideoSurface->pitch);
+		else
 		{
-			int x, y;
-			SDL_GetMouseState(&x, &y);
-			x = x * SDL_ANDROID_sRealWindowWidth / SDL_ANDROID_sFakeWindowWidth;
-			y = y * SDL_ANDROID_sRealWindowHeight / SDL_ANDROID_sFakeWindowHeight;
-			SDL_ANDROID_DrawMouseCursor( x, y, 0, MousePointerAlpha );
-			if( MousePointerAlpha > 64 )
-				MousePointerAlpha -= 10 ;
+			int i = 0;
+			for(i = 0; i < numrects; i++)
+				SDL_UpdateTexture((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rects[i], SDL_CurrentVideoSurface->pixels, SDL_CurrentVideoSurface->pitch);
 		}
-		if( SDL_ANDROID_ShowScreenUnderFinger && SDL_ANDROID_ShowScreenUnderFingerRect.w > 0 )
+		if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_NONE || SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER )
+		{
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &rect, &rect);
+		}
+		if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER && SDL_ANDROID_ShowScreenUnderFingerRect.w > 0 )
 		{
 			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &SDL_ANDROID_ShowScreenUnderFingerRectSrc, &SDL_ANDROID_ShowScreenUnderFingerRect);
 			SDL_Rect frame = SDL_ANDROID_ShowScreenUnderFingerRect;
@@ -894,9 +895,79 @@ static void ANDROID_FlipHWSurfaceInternal()
 			glDrawArrays(GL_LINE_LOOP, 0, 4);
 			glDisableClientState(GL_VERTEX_ARRAY);
 			glPopMatrix();
-			if(SDL_ANDROID_ShowMouseCursor)
+			//glFlush();
+		}
+		if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_SCREEN_TRANSFORM )
+		{
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &SDL_ANDROID_ShowScreenUnderFingerRectSrc, &SDL_ANDROID_ShowScreenUnderFingerRect);
+			SDL_Rect edge, edgeSrc;
+			// upper-left
+			edge.x = edge.y = edgeSrc.x = edgeSrc.y = 0;
+			edge.w = SDL_ANDROID_ShowScreenUnderFingerRect.x;
+			edge.h = SDL_ANDROID_ShowScreenUnderFingerRect.y;
+			edgeSrc.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x;
+			edgeSrc.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// left
+			edge.y = SDL_ANDROID_ShowScreenUnderFingerRect.y;
+			edgeSrc.y = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y;
+			edge.h = SDL_ANDROID_ShowScreenUnderFingerRect.h;
+			edgeSrc.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// lower-left
+			edge.y = SDL_ANDROID_ShowScreenUnderFingerRect.y + SDL_ANDROID_ShowScreenUnderFingerRect.h;
+			edgeSrc.y = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y + SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+			edge.h = SDL_ANDROID_sFakeWindowHeight - edge.y;
+			edgeSrc.h = SDL_ANDROID_sFakeWindowHeight - edgeSrc.y;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// lower
+			edge.x = SDL_ANDROID_ShowScreenUnderFingerRect.x;
+			edgeSrc.x = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x;
+			edge.w = SDL_ANDROID_ShowScreenUnderFingerRect.w;
+			edgeSrc.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// lower-right
+			edge.x = SDL_ANDROID_ShowScreenUnderFingerRect.x + SDL_ANDROID_ShowScreenUnderFingerRect.w;
+			edgeSrc.x = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x + SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+			edge.w = SDL_ANDROID_sFakeWindowWidth - edge.x;
+			edgeSrc.w = SDL_ANDROID_sFakeWindowWidth - edgeSrc.x;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// right
+			edge.y = SDL_ANDROID_ShowScreenUnderFingerRect.y;
+			edgeSrc.y = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y;
+			edge.h = SDL_ANDROID_ShowScreenUnderFingerRect.h;
+			edgeSrc.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.h;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// upper-right
+			edge.y = 0;
+			edgeSrc.y = 0;
+			edge.h = SDL_ANDROID_ShowScreenUnderFingerRect.y;
+			edgeSrc.h = SDL_ANDROID_ShowScreenUnderFingerRectSrc.y;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+			// upper
+			edge.x = SDL_ANDROID_ShowScreenUnderFingerRect.x;
+			edgeSrc.x = SDL_ANDROID_ShowScreenUnderFingerRectSrc.x;
+			edge.w = SDL_ANDROID_ShowScreenUnderFingerRect.w;
+			edgeSrc.w = SDL_ANDROID_ShowScreenUnderFingerRectSrc.w;
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &edgeSrc, &edge);
+		}
+		if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_FULLSCREEN_MAGNIFIER )
+		{
+			SDL_RenderCopy((struct SDL_Texture *)SDL_CurrentVideoSurface->hwdata, &SDL_ANDROID_ShowScreenUnderFingerRectSrc, &SDL_ANDROID_ShowScreenUnderFingerRect);
+		}
+
+		if(SDL_ANDROID_ShowMouseCursor)
+		{
+			if( SDL_ANDROID_ShowScreenUnderFinger == ZOOM_NONE || SDL_ANDROID_ShowScreenUnderFinger == ZOOM_MAGNIFIER )
 			{
-				MousePointerAlpha = 255;
+				int x, y;
+				SDL_GetMouseState(&x, &y);
+				x = x * SDL_ANDROID_sRealWindowWidth / SDL_ANDROID_sFakeWindowWidth;
+				y = y * SDL_ANDROID_sRealWindowHeight / SDL_ANDROID_sFakeWindowHeight;
+				SDL_ANDROID_DrawMouseCursor( x, y, 0, 255 );
+			}
+			if( SDL_ANDROID_ShowScreenUnderFinger != ZOOM_NONE )
+			{
 				int x, y;
 				SDL_GetMouseState(&x, &y);
 				x = SDL_ANDROID_ShowScreenUnderFingerRect.x +
@@ -909,7 +980,6 @@ static void ANDROID_FlipHWSurfaceInternal()
 				y = y * SDL_ANDROID_sRealWindowHeight / SDL_ANDROID_sFakeWindowHeight;
 				SDL_ANDROID_DrawMouseCursor( x, y, 16, 255 );
 			}
-			//glFlush();
 		}
 	}
 };
@@ -928,7 +998,7 @@ static int ANDROID_FlipHWSurface(_THIS, SDL_Surface *surface)
 		return -1;
 	}
 
-	ANDROID_FlipHWSurfaceInternal();
+	ANDROID_FlipHWSurfaceInternal(0, NULL);
 
 	SDL_ANDROID_CallJavaSwapBuffers();
 
@@ -949,7 +1019,8 @@ static void ANDROID_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 		return;
 	}
 
-	ANDROID_FlipHWSurfaceInternal();
+	// ANDROID_FlipHWSurfaceInternal(numrects, rects); // Fails for fheroes2, I'll add a compatibility option later.
+	ANDROID_FlipHWSurfaceInternal(0, NULL);
 
 	SDL_ANDROID_CallJavaSwapBuffers();
 }
@@ -1052,6 +1123,8 @@ typedef struct
 	int height;
 	int bpp;
 	Uint32 flags;
+	int numrects;
+	SDL_Rect *rects;
 	
 	int retcode;
 	SDL_Surface * retcode2;
@@ -1096,11 +1169,11 @@ void SDL_ANDROID_MultiThreadedVideoLoop()
 					ANDROID_VideoQuit(videoThread._this);
 					break;
 				case CMD_UPDATERECTS:
-					ANDROID_FlipHWSurfaceInternal();
+					ANDROID_FlipHWSurfaceInternal(videoThread.numrects, videoThread.rects);
 					swapBuffersNeeded = 1;
 					break;
 				case CMD_FLIP:
-					ANDROID_FlipHWSurfaceInternal();
+					ANDROID_FlipHWSurfaceInternal(0, NULL);
 					swapBuffersNeeded = 1;
 					break;
 			}
@@ -1109,7 +1182,7 @@ void SDL_ANDROID_MultiThreadedVideoLoop()
 		}
 		else if( SDL_ANDROID_CompatibilityHacks && ret == SDL_MUTEX_TIMEDOUT && SDL_CurrentVideoSurface )
 		{
-			ANDROID_FlipHWSurfaceInternal();
+			ANDROID_FlipHWSurfaceInternal(0, NULL);
 			swapBuffersNeeded = 1;
 		}
 		SDL_mutexV(videoThread.mutex);
@@ -1185,6 +1258,8 @@ void ANDROID_UpdateRectsMT(_THIS, int numrects, SDL_Rect *rects)
 		SDL_CondWaitTimeout(videoThread.cond2, videoThread.mutex, 1000);
 	videoThread.cmd = CMD_UPDATERECTS;
 	videoThread._this = this;
+	videoThread.numrects = numrects;
+	videoThread.rects = rects;
 	videoThread.execute = 1;
 	SDL_CondSignal(videoThread.cond);
 	while( videoThread.execute )
