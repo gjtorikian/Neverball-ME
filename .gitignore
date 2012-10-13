@@ -7,7 +7,9 @@ project/src
 project/res/values*
 project/AndroidManifest.xml
 project/jni/Settings.mk
+project/bin/classes
 libapplication.so
-project/jni/application/src
+project/jni/application/*
+!project/jni/application/src
 .DS_Store
 .svn
