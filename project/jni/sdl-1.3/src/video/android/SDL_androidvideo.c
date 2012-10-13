@@ -37,6 +37,7 @@
 #include "SDL_mouse.h"
 #include "SDL_mutex.h"
 #include "SDL_thread.h"
+#include "SDL_android.h"
 #include "../SDL_sysvideo.h"
 #include "../SDL_pixels_c.h"
 #include "../../events/SDL_events_c.h"
@@ -61,12 +62,18 @@ static jclass JavaRendererClass = NULL;
 static jobject JavaRenderer = NULL;
 static jmethodID JavaSwapBuffers = NULL;
 static jmethodID JavaShowScreenKeyboard = NULL;
+static jmethodID JavaToggleScreenKeyboardWithoutTextInput = NULL;
+static jmethodID JavaGetAdvertisementParams = NULL;
+static jmethodID JavaSetAdvertisementVisible = NULL;
+static jmethodID JavaSetAdvertisementPosition = NULL;
+static jmethodID JavaRequestNewAdvertisement = NULL;
 static int glContextLost = 0;
 static int showScreenKeyboardDeferred = 0;
 static const char * showScreenKeyboardOldText = "";
 static int showScreenKeyboardSendBackspace = 0;
-int SDL_ANDROID_SmoothVideo = 0;
+int SDL_ANDROID_VideoLinearFilter = 0;
 int SDL_ANDROID_VideoMultithreaded = 0;
+int SDL_ANDROID_VideoForceSoftwareMode = 0;
 int SDL_ANDROID_CompatibilityHacks = 0;
 int SDL_ANDROID_BYTESPERPIXEL = 2;
 int SDL_ANDROID_BITSPERPIXEL = 16;
@@ -84,6 +91,8 @@ static void appRestoredCallbackDefault(void)
 
 static SDL_ANDROID_ApplicationPutToBackgroundCallback_t appPutToBackgroundCallback = appPutToBackgroundCallbackDefault;
 static SDL_ANDROID_ApplicationPutToBackgroundCallback_t appRestoredCallback = appRestoredCallbackDefault;
+static SDL_ANDROID_ApplicationPutToBackgroundCallback_t openALPutToBackgroundCallback = NULL;
+static SDL_ANDROID_ApplicationPutToBackgroundCallback_t openALRestoredCallback = NULL;
 
 int SDL_ANDROID_CallJavaSwapBuffers()
 {
@@ -120,6 +129,8 @@ int SDL_ANDROID_CallJavaSwapBuffers()
 		__android_log_print(ANDROID_LOG_INFO, "libSDL", "OpenGL context recreated, refreshing textures");
 		SDL_ANDROID_VideoContextRecreated();
 		appRestoredCallback();
+		if(openALRestoredCallback)
+			openALRestoredCallback();
 	}
 	if( showScreenKeyboardDeferred )
 	{
@@ -195,15 +206,19 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextLost) ( JNIEnv*  env, jobject  thiz
 	__android_log_print(ANDROID_LOG_INFO, "libSDL", "OpenGL context lost, waiting for new OpenGL context");
 	glContextLost = 1;
 	appPutToBackgroundCallback();
-#if SDL_VERSION_ATLEAST(1,3,0)
-	//if( ANDROID_CurrentWindow )
-	//	SDL_SendWindowEvent(ANDROID_CurrentWindow, SDL_WINDOWEVENT_MINIMIZED, 0, 0);
-#else
-	SDL_PrivateAppActive(0, SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS);
-#endif
+	if(openALPutToBackgroundCallback)
+		openALPutToBackgroundCallback();
 
 	SDL_ANDROID_VideoContextLost();
 }
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextLostAsyncEvent) ( JNIEnv*  env, jobject thiz )
+{
+	__android_log_print(ANDROID_LOG_INFO, "libSDL", "OpenGL context lost - sending SDL_ACTIVEEVENT");
+	SDL_ANDROID_MainThreadPushAppActive(0);
+}
+
 
 JNIEXPORT void JNICALL 
 JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextRecreated) ( JNIEnv*  env, jobject  thiz )
@@ -215,6 +230,12 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextRecreated) ( JNIEnv*  env, jobject 
 #else
 	SDL_PrivateAppActive(1, SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS);
 #endif
+}
+
+int SDL_ANDROID_ToggleScreenKeyboardWithoutTextInput(void)
+{
+	(*JavaEnv)->CallVoidMethod( JavaEnv, JavaRenderer, JavaToggleScreenKeyboardWithoutTextInput );
+	return 1;
 }
 
 volatile static textInputFinished = 0;
@@ -270,11 +291,17 @@ JNIEXPORT void JNICALL
 JAVA_EXPORT_NAME(DemoRenderer_nativeInitJavaCallbacks) ( JNIEnv*  env, jobject thiz )
 {
 	JavaEnv = env;
-	JavaRenderer = thiz;
+	JavaRenderer = (*JavaEnv)->NewGlobalRef( JavaEnv, thiz );
 	
 	JavaRendererClass = (*JavaEnv)->GetObjectClass(JavaEnv, thiz);
 	JavaSwapBuffers = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "swapBuffers", "()I");
 	JavaShowScreenKeyboard = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "showScreenKeyboard", "(Ljava/lang/String;I)V");
+	JavaToggleScreenKeyboardWithoutTextInput = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "showScreenKeyboardWithoutTextInputField", "()V");
+	// TODO: implement it
+	JavaGetAdvertisementParams = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "getAdvertisementParams", "([I)V");
+	JavaSetAdvertisementVisible = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "setAdvertisementVisible", "(I)V");
+	JavaSetAdvertisementPosition = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "setAdvertisementPosition", "(II)V");
+	JavaRequestNewAdvertisement = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "requestNewAdvertisement", "()V");
 	
 	ANDROID_InitOSKeymap();
 }
@@ -293,16 +320,34 @@ int SDL_ANDROID_SetApplicationPutToBackgroundCallback(
 		appRestoredCallback = appRestored;
 }
 
-JNIEXPORT void JNICALL
-JAVA_EXPORT_NAME(Settings_nativeSetSmoothVideo) (JNIEnv* env, jobject thiz)
+extern int SDL_ANDROID_SetOpenALPutToBackgroundCallback(
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t PutToBackground,
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t Restored );
+
+int SDL_ANDROID_SetOpenALPutToBackgroundCallback(
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t PutToBackground,
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t Restored )
 {
-	SDL_ANDROID_SmoothVideo = 1;
+	openALPutToBackgroundCallback = PutToBackground;
+	openALRestoredCallback = Restored;
+}
+
+JNIEXPORT void JNICALL
+JAVA_EXPORT_NAME(Settings_nativeSetVideoLinearFilter) (JNIEnv* env, jobject thiz)
+{
+	SDL_ANDROID_VideoLinearFilter = 1;
 }
 
 JNIEXPORT void JNICALL
 JAVA_EXPORT_NAME(Settings_nativeSetVideoMultithreaded) (JNIEnv* env, jobject thiz)
 {
 	SDL_ANDROID_VideoMultithreaded = 1;
+}
+
+JNIEXPORT void JNICALL
+JAVA_EXPORT_NAME(Settings_nativeSetVideoForceSoftwareMode) (JNIEnv* env, jobject thiz)
+{
+	SDL_ANDROID_VideoForceSoftwareMode = 1;
 }
 
 JNIEXPORT void JNICALL
@@ -317,4 +362,41 @@ JAVA_EXPORT_NAME(Settings_nativeSetVideoDepth) (JNIEnv* env, jobject thiz, jint 
 	SDL_ANDROID_BITSPERPIXEL = bpp;
 	SDL_ANDROID_BYTESPERPIXEL = SDL_ANDROID_BITSPERPIXEL / 8;
 	SDL_ANDROID_UseGles2 = UseGles2;
+}
+
+int SDLCALL SDL_ANDROID_GetAdvertisementParams(int * visible, SDL_Rect * position)
+{
+	jint arr[5];
+	jintArray elemArr = (*JavaEnv)->NewIntArray(JavaEnv, 5);
+	if (elemArr == NULL)
+		return 0;
+	(*JavaEnv)->SetIntArrayRegion(JavaEnv, elemArr, 0, 5, arr);
+	(*JavaEnv)->CallVoidMethod(JavaEnv, JavaRenderer, JavaGetAdvertisementParams, elemArr);
+	(*JavaEnv)->GetIntArrayRegion(JavaEnv, elemArr, 0, 5, arr);
+	(*JavaEnv)->DeleteLocalRef(JavaEnv, elemArr);
+	if(visible)
+		*visible = arr[0];
+	if(position)
+	{
+		position->x = arr[1];
+		position->y = arr[2];
+		position->w = arr[3];
+		position->h = arr[4];
+	}
+	return 1;
+}
+int SDLCALL SDL_ANDROID_SetAdvertisementVisible(int visible)
+{
+	(*JavaEnv)->CallVoidMethod( JavaEnv, JavaRenderer, JavaSetAdvertisementVisible, (jint)visible );
+	return 1;
+}
+int SDLCALL SDL_ANDROID_SetAdvertisementPosition(int left, int top)
+{
+	(*JavaEnv)->CallVoidMethod( JavaEnv, JavaRenderer, JavaSetAdvertisementPosition, (jint)left, (jint)top );
+	return 1;
+}
+int SDLCALL SDL_ANDROID_RequestNewAdvertisement(void)
+{
+	(*JavaEnv)->CallVoidMethod( JavaEnv, JavaRenderer, JavaRequestNewAdvertisement );
+	return 1;
 }

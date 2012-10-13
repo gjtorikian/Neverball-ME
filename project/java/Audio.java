@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -37,7 +37,8 @@ import android.util.Log;
 import java.lang.Thread;
 
 
-class AudioThread {
+class AudioThread
+{
 
 	private MainActivity mParent;
 	private AudioTrack mAudio;
@@ -57,7 +58,7 @@ class AudioThread {
 		if( mParent.isPaused() )
 		{
 			try{
-				Thread.sleep(200);
+				Thread.sleep(500);
 			} catch (InterruptedException e) {}
 		}
 		else

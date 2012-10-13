@@ -26,7 +26,7 @@ echo "If you will supply empty string as answer the previous value will be used"
 
 if [ -z "$LibSdlVersion" -o -z "$AUTO" ]; then
 echo
-echo -n "libSDL version to use (1.2 or 1.3) ($LibSdlVersion): "
+echo -n "libSDL version to use (1.2 or 1.3, specify 1.3 for SDL2) ($LibSdlVersion): "
 read var
 if [ -n "$var" ] ; then
 	LibSdlVersion="$var"
@@ -122,6 +122,16 @@ if [ "$LibSdlVersion" = "1.2" ]; then
 	fi
 else
 	SwVideoMode=n
+fi
+
+if [ -z "$CompatibilityHacksStaticInit" -o -z "$AUTO" ]; then
+echo
+echo -n "Application initializes SDL audio/video inside static constructors (which is bad, you won't be able to run ndk-gdb) (y)/(n) ($CompatibilityHacksStaticInit): "
+read var
+if [ -n "$var" ] ; then
+	CompatibilityHacksStaticInit="$var"
+	CHANGED=1
+fi
 fi
 
 if [ -z "$VideoDepthBpp" -o -z "$AUTO" ]; then
@@ -226,7 +236,7 @@ fi
 
 if [ -z "$ShowMouseCursor" -o -z "$AUTO" ]; then
 echo
-echo -n "Show SDL mouse cursor, for applicaitons that do not draw cursor at all (y) or (n) ($ShowMouseCursor): "
+echo -n "Show SDL mouse cursor, for applications that do not draw cursor at all (y) or (n) ($ShowMouseCursor): "
 read var
 if [ -n "$var" ] ; then
 	ShowMouseCursor="$var"
@@ -255,11 +265,20 @@ if [ -n "$var" ] ; then
 fi
 fi
 
+if [ -z "$CompatibilityHacksTextInputEmulatesHwKeyboard" -o -z "$AUTO" ]; then
+echo
+echo -n "On-screen Android soft text input emulates hardware keyboard, this will only work with Hackers Keyboard app (y)/(n) ($CompatibilityHacksTextInputEmulatesHwKeyboard): "
+read var
+if [ -n "$var" ] ; then
+	CompatibilityHacksTextInputEmulatesHwKeyboard="$var"
+	CHANGED=1
+fi
+fi
+
 if [ -z "$AppUsesJoystick" -o -z "$AUTO" ]; then
 echo
-echo "Application uses joystick (y) or (n), the accelerometer (2-axis) or orientation sensor (3-axis)"
-echo "will be used as joystick 0, also on-screen DPAD will be used as joystick -"
-echo -n "make sure you can navigate all app menus with joystick or mouse ($AppUsesJoystick): "
+echo "Application uses joystick (y) or (n), the on-screen DPAD will be used"
+echo -n " as joystick 0 axes 0-1, you will also need to set AppNeedsArrowKeys=y ($AppUsesJoystick): "
 read var
 if [ -n "$var" ] ; then
 	AppUsesJoystick="$var"
@@ -267,21 +286,20 @@ if [ -n "$var" ] ; then
 fi
 fi
 
-if [ -z "$AppHandlesJoystickSensitivity" -o -z "$AUTO" ]; then
+if [ -z "$AppUsesAccelerometer" -o -z "$AUTO" ]; then
 echo
-echo "Application will handle joystick center and sensitivity itself, "
-echo -n "SDL will send raw accelerometer data and won't show 'Accelerometer sensitivity' dialog (y) or (n) ($AppHandlesJoystickSensitivity): "
+echo -n "Application uses accelerometer (y) or (n), the accelerometer will be used as joystick 0 axes 2-3 ($AppUsesAccelerometer): "
 read var
 if [ -n "$var" ] ; then
-	AppHandlesJoystickSensitivity="$var"
+	AppUsesAccelerometer="$var"
 	CHANGED=1
 fi
 fi
 
 if [ -z "$AppUsesMultitouch" -o -z "$AUTO" ]; then
 echo
-echo "Application uses multitouch (y) or (n), multitouch events are passed as 4-axis joysticks 1-16, with pressure and size,"
-echo -n "or additionally as SDL_FINGERDOWN/UP/MOTION events in SDL 1.3, with SDL pressure = Android pressure * Andorid touchspot size ($AppUsesMultitouch): "
+echo "Application uses multitouch (y) or (n), multitouch events are passed as SDL_JOYBUTTONDOWN/SDL_JOYBALLMOTION events"
+echo -n " for the joystick 0, or additionally as SDL_FINGERDOWN/UP/MOTION events in SDL 1.3 ($AppUsesMultitouch): "
 read var
 if [ -n "$var" ] ; then
 	AppUsesMultitouch="$var"
@@ -315,9 +333,9 @@ fi
 if [ -z "$RedefinedKeys" -o -z "$AUTO" ]; then
 echo
 echo "Redefine common keys to SDL keysyms"
-echo "MENU and BACK hardware keys and TOUCHSCREEN virtual 'key' are available on all devices, other keys may be absent"
+echo "BACK hardware key is available on all devices, MENU is available on pre-ICS devices, other keys may be absent"
 echo "SEARCH and CALL by default return same keycode as DPAD_CENTER - one of those keys is available on most devices"
-echo "Use word NO_REMAP if you want to preserve native functionality for certain key "
+echo "Use word NO_REMAP if you want to preserve native functionality for certain key (volume keys typically)"
 echo "TOUCHSCREEN DPAD_CENTER/SEARCH VOLUMEUP VOLUMEDOWN MENU BACK CAMERA - Java keycodes"
 echo "$RedefinedKeys - current SDL keycodes"
 echo -n ": "
@@ -444,6 +462,16 @@ if [ -n "$var" ] ; then
 fi
 fi
 
+if [ -z "$DeleteFilesOnUpgrade" -o -z "$AUTO" ]; then
+echo
+echo -n "Delete application data files when upgrading (specify file/dir paths separated by spaces): ($DeleteFilesOnUpgrade): "
+read var
+if [ -n "$var" ] ; then
+	DeleteFilesOnUpgrade="$var"
+	CHANGED=1
+fi
+fi
+
 if [ -z "$CustomBuildScript" -o -z "$AUTO" ]; then
 echo
 echo -n "Application uses custom build script AndroidBuild.sh instead of Android.mk (y) or (n) ($CustomBuildScript): "
@@ -534,6 +562,48 @@ if [ -n "$ReadmeText1" ] ; then
 fi
 fi
 
+if [ -z "$AUTO" -o -z "$AdmobPublisherId" ]; then
+echo
+echo -n "Your AdMob Publisher ID, (n) if you don't want advertisements ($AdmobPublisherId): "
+read var
+if [ -n "$var" ] ; then
+	AdmobPublisherId="$var"
+	CHANGED=1
+fi
+fi
+
+if [ "$AdmobPublisherId" '!=' "n" ]; then
+if [ -z "$AUTO" -o -z "$AdmobTestDeviceId" ]; then
+echo
+echo -n "Your AdMob test device ID, to receive a test ad ($AdmobTestDeviceId): "
+read var
+if [ -n "$var" ] ; then
+	AdmobTestDeviceId="$var"
+	CHANGED=1
+fi
+fi
+if [ -z "$AUTO" -o -z "$AdmobBannerSize" ]; then
+echo
+echo -n "Your AdMob banner size (BANNER/IAB_BANNER/IAB_LEADERBOARD/IAB_MRECT/IAB_WIDE_SKYSCRAPER/SMART_BANNER) ($AdmobBannerSize): "
+read var
+if [ -n "$var" ] ; then
+	AdmobBannerSize="$var"
+	CHANGED=1
+fi
+fi
+fi
+
+if [ -z "$AUTO" -o -z "$MinimumScreenSize" ]; then
+echo
+echo "Screen size is used by Google Play to prevent an app to be installed on devices with smaller screens"
+echo -n "Minimum screen size that application supports: (s)mall / (n)ormal / (l)arge ($MinimumScreenSize): "
+read var
+if [ -n "$var" ] ; then
+	MinimumScreenSize="$var"
+	CHANGED=1
+fi
+fi
+
 echo
 
 if [ -n "$CHANGED" ]; then
@@ -554,6 +624,8 @@ echo SwVideoMode=$SwVideoMode >> AndroidAppSettings.cfg
 echo SdlVideoResize=$SdlVideoResize >> AndroidAppSettings.cfg
 echo SdlVideoResizeKeepAspect=$SdlVideoResizeKeepAspect >> AndroidAppSettings.cfg
 echo CompatibilityHacks=$CompatibilityHacks >> AndroidAppSettings.cfg
+echo CompatibilityHacksStaticInit=$CompatibilityHacksStaticInit >> AndroidAppSettings.cfg
+echo CompatibilityHacksTextInputEmulatesHwKeyboard=$CompatibilityHacksTextInputEmulatesHwKeyboard >> AndroidAppSettings.cfg
 echo AppUsesMouse=$AppUsesMouse >> AndroidAppSettings.cfg
 echo AppNeedsTwoButtonMouse=$AppNeedsTwoButtonMouse >> AndroidAppSettings.cfg
 echo ShowMouseCursor=$ShowMouseCursor >> AndroidAppSettings.cfg
@@ -561,7 +633,7 @@ echo ForceRelativeMouseMode=$ForceRelativeMouseMode >> AndroidAppSettings.cfg
 echo AppNeedsArrowKeys=$AppNeedsArrowKeys >> AndroidAppSettings.cfg
 echo AppNeedsTextInput=$AppNeedsTextInput >> AndroidAppSettings.cfg
 echo AppUsesJoystick=$AppUsesJoystick >> AndroidAppSettings.cfg
-echo AppHandlesJoystickSensitivity=$AppHandlesJoystickSensitivity >> AndroidAppSettings.cfg
+echo AppUsesAccelerometer=$AppUsesAccelerometer >> AndroidAppSettings.cfg
 echo AppUsesMultitouch=$AppUsesMultitouch >> AndroidAppSettings.cfg
 echo NonBlockingSwapBuffers=$NonBlockingSwapBuffers >> AndroidAppSettings.cfg
 echo RedefinedKeys=\"$RedefinedKeys\" >> AndroidAppSettings.cfg
@@ -575,6 +647,7 @@ echo MultiABI=$MultiABI >> AndroidAppSettings.cfg
 echo AppVersionCode=$AppVersionCode >> AndroidAppSettings.cfg
 echo AppVersionName=\"$AppVersionName\" >> AndroidAppSettings.cfg
 echo ResetSdlConfigForThisVersion=$ResetSdlConfigForThisVersion >> AndroidAppSettings.cfg
+echo DeleteFilesOnUpgrade=\"$DeleteFilesOnUpgrade\" >> AndroidAppSettings.cfg
 echo CompiledLibraries=\"$CompiledLibraries\" >> AndroidAppSettings.cfg
 echo CustomBuildScript=$CustomBuildScript >> AndroidAppSettings.cfg
 echo AppCflags=\'$AppCflags\' >> AndroidAppSettings.cfg
@@ -582,6 +655,10 @@ echo AppLdflags=\'$AppLdflags\' >> AndroidAppSettings.cfg
 echo AppSubdirsBuild=\'$AppSubdirsBuild\' >> AndroidAppSettings.cfg
 echo AppCmdline=\'$AppCmdline\' >> AndroidAppSettings.cfg
 echo ReadmeText=\'$ReadmeText\' >> AndroidAppSettings.cfg
+echo MinimumScreenSize=$MinimumScreenSize >> AndroidAppSettings.cfg
+echo AdmobPublisherId=$AdmobPublisherId >> AndroidAppSettings.cfg
+echo AdmobTestDeviceId=$AdmobTestDeviceId >> AndroidAppSettings.cfg
+echo AdmobBannerSize=$AdmobBannerSize >> AndroidAppSettings.cfg
 fi
 
 AppShortName=`echo $AppName | sed 's/ //g'`
@@ -651,6 +728,18 @@ else
 	CompatibilityHacks=false
 fi
 
+if [ "$CompatibilityHacksStaticInit" = "y" ] ; then
+	CompatibilityHacksStaticInit=true
+else
+	CompatibilityHacksStaticInit=false
+fi
+
+if [ "$CompatibilityHacksTextInputEmulatesHwKeyboard" = "y" ] ; then
+	CompatibilityHacksTextInputEmulatesHwKeyboard=true
+else
+	CompatibilityHacksTextInputEmulatesHwKeyboard=false
+fi
+
 if [ "$AppUsesMouse" = "y" ] ; then
 	AppUsesMouse=true
 else
@@ -693,10 +782,10 @@ else
 	AppUsesJoystick=false
 fi
 
-if [ "$AppHandlesJoystickSensitivity" = "y" ] ; then
-	AppHandlesJoystickSensitivity=true
+if [ "$AppUsesAccelerometer" = "y" ] ; then
+	AppUsesAccelerometer=true
 else
-	AppHandlesJoystickSensitivity=false
+	AppUsesAccelerometer=false
 fi
 
 if [ "$AppUsesMultitouch" = "y" ] ; then
@@ -766,14 +855,6 @@ fi
 
 ReadmeText="`echo $ReadmeText | sed 's/\"/\\\\\\\\\"/g' | sed 's/[&%]//g'`"
 
-echo Patching project/AndroidManifest.xml
-cat project/AndroidManifestTemplate.xml | \
-	sed "s/package=.*/package=\"$AppFullName\"/" | \
-	sed "s/android:screenOrientation=.*/android:screenOrientation=\"$ScreenOrientation1\"/" | \
-	sed "s^android:versionCode=.*^android:versionCode=\"$AppVersionCode\"^" | \
-	sed "s^android:versionName=.*^android:versionName=\"$AppVersionName\"^" > \
-	project/AndroidManifest.xml
-
 rm -rf project/src
 mkdir -p project/src
 cd project/java
@@ -783,6 +864,38 @@ for F in *.java; do
 	cat $F | sed "s/package .*;/package $AppFullName;/" >> ../src/$F
 done
 cd ../..
+
+echo Patching project/AndroidManifest.xml
+cat project/AndroidManifestTemplate.xml | \
+	sed "s/package=.*/package=\"$AppFullName\"/" | \
+	sed "s/android:screenOrientation=.*/android:screenOrientation=\"$ScreenOrientation1\"/" | \
+	sed "s^android:versionCode=.*^android:versionCode=\"$AppVersionCode\"^" | \
+	sed "s^android:versionName=.*^android:versionName=\"$AppVersionName\"^" > \
+	project/AndroidManifest.xml
+if [ "$AdmobPublisherId" = "n" -o -z "$AdmobPublisherId" ] ; then
+	sed -i "/==ADMOB==/ d" project/AndroidManifest.xml
+	AdmobPublisherId=""
+else
+	F=project/java/admob/Advertisement.java
+	echo Patching $F
+	echo '// DO NOT EDIT THIS FILE - it is automatically generated, edit file under project/java dir' > project/src/Advertisement.java
+	cat $F | sed "s/package .*;/package $AppFullName;/" >> project/src/Advertisement.java
+fi
+
+case "$MinimumScreenSize" in
+	n|m)
+		sed -i "/==SCREEN-SIZE-SMALL==/ d" project/AndroidManifest.xml
+		sed -i "/==SCREEN-SIZE-LARGE==/ d" project/AndroidManifest.xml
+		;;
+	l)
+		sed -i "/==SCREEN-SIZE-SMALL==/ d" project/AndroidManifest.xml
+		sed -i "/==SCREEN-SIZE-NORMAL==/ d" project/AndroidManifest.xml
+		;;
+	*)
+		sed -i "/==SCREEN-SIZE-NORMAL==/ d" project/AndroidManifest.xml
+		sed -i "/==SCREEN-SIZE-LARGE==/ d" project/AndroidManifest.xml
+		;;
+esac
 
 echo Patching project/src/Globals.java
 cat project/src/Globals.java | \
@@ -794,7 +907,9 @@ cat project/src/Globals.java | \
 	sed "s/public static boolean NeedDepthBuffer = .*;/public static boolean NeedDepthBuffer = $NeedDepthBuffer;/" | \
 	sed "s/public static boolean NeedStencilBuffer = .*;/public static boolean NeedStencilBuffer = $NeedStencilBuffer;/" | \
 	sed "s/public static boolean NeedGles2 = .*;/public static boolean NeedGles2 = $NeedGles2;/" | \
-	sed "s/public static boolean CompatibilityHacks = .*;/public static boolean CompatibilityHacks = $CompatibilityHacks;/" | \
+	sed "s/public static boolean CompatibilityHacksVideo = .*;/public static boolean CompatibilityHacksVideo = $CompatibilityHacks;/" | \
+	sed "s/public static boolean CompatibilityHacksStaticInit = .*;/public static boolean CompatibilityHacksStaticInit = $CompatibilityHacksStaticInit;/" | \
+	sed "s/public static boolean CompatibilityHacksTextInputEmulatesHwKeyboard = .*;/public static boolean CompatibilityHacksTextInputEmulatesHwKeyboard = $CompatibilityHacksTextInputEmulatesHwKeyboard;/" | \
 	sed "s/public static boolean HorizontalOrientation = .*;/public static boolean HorizontalOrientation = $HorizontalOrientation;/" | \
 	sed "s/public static boolean InhibitSuspend = .*;/public static boolean InhibitSuspend = $InhibitSuspend;/" | \
 	sed "s/public static boolean AppUsesMouse = .*;/public static boolean AppUsesMouse = $AppUsesMouse;/" | \
@@ -804,10 +919,11 @@ cat project/src/Globals.java | \
 	sed "s/public static boolean AppNeedsArrowKeys = .*;/public static boolean AppNeedsArrowKeys = $AppNeedsArrowKeys;/" | \
 	sed "s/public static boolean AppNeedsTextInput = .*;/public static boolean AppNeedsTextInput = $AppNeedsTextInput;/" | \
 	sed "s/public static boolean AppUsesJoystick = .*;/public static boolean AppUsesJoystick = $AppUsesJoystick;/" | \
-	sed "s/public static boolean AppHandlesJoystickSensitivity = .*;/public static boolean AppHandlesJoystickSensitivity = $AppHandlesJoystickSensitivity;/" | \
+	sed "s/public static boolean AppUsesAccelerometer = .*;/public static boolean AppUsesAccelerometer = $AppUsesAccelerometer;/" | \
 	sed "s/public static boolean AppUsesMultitouch = .*;/public static boolean AppUsesMultitouch = $AppUsesMultitouch;/" | \
 	sed "s/public static boolean NonBlockingSwapBuffers = .*;/public static boolean NonBlockingSwapBuffers = $NonBlockingSwapBuffers;/" | \
 	sed "s/public static boolean ResetSdlConfigForThisVersion = .*;/public static boolean ResetSdlConfigForThisVersion = $ResetSdlConfigForThisVersion;/" | \
+	sed "s|public static String DeleteFilesOnUpgrade = .*;|public static String DeleteFilesOnUpgrade = \"$DeleteFilesOnUpgrade\";|" | \
 	sed "s/public static int AppTouchscreenKeyboardKeysAmount = .*;/public static int AppTouchscreenKeyboardKeysAmount = $AppTouchscreenKeyboardKeysAmount;/" | \
 	sed "s/public static int AppTouchscreenKeyboardKeysAmountAutoFire = .*;/public static int AppTouchscreenKeyboardKeysAmountAutoFire = $AppTouchscreenKeyboardKeysAmountAutoFire;/" | \
 	sed "s/public static int StartupMenuButtonTimeout = .*;/public static int StartupMenuButtonTimeout = $StartupMenuButtonTimeout;/" | \
@@ -815,6 +931,9 @@ cat project/src/Globals.java | \
 	sed "s@public static Settings.Menu FirstStartMenuOptions .*;@public static Settings.Menu FirstStartMenuOptions [] = { $FirstStartMenuOptions };@" | \
 	sed "s%public static String ReadmeText = .*%public static String ReadmeText = \"$ReadmeText\".replace(\"^\",\"\\\n\");%" | \
 	sed "s%public static String CommandLine = .*%public static String CommandLine = \"$AppCmdline\";%" | \
+	sed "s/public static String AdmobPublisherId = .*/public static String AdmobPublisherId = \"$AdmobPublisherId\";/" | \
+	sed "s/public static String AdmobTestDeviceId = .*/public static String AdmobTestDeviceId = \"$AdmobTestDeviceId\";/" | \
+	sed "s/public static String AdmobBannerSize = .*/public static String AdmobBannerSize = \"$AdmobBannerSize\";/" | \
 	sed "s/public static String AppLibraries.*/public static String AppLibraries[] = { $LibrariesToLoad };/" > \
 	project/src/Globals.java.1
 mv -f project/src/Globals.java.1 project/src/Globals.java
@@ -822,7 +941,7 @@ mv -f project/src/Globals.java.1 project/src/Globals.java
 echo Patching project/jni/Settings.mk
 echo '# DO NOT EDIT THIS FILE - it is automatically generated, edit file SettingsTemplate.mk' > project/jni/Settings.mk
 cat project/jni/SettingsTemplate.mk | \
-	sed "s/APP_MODULES := .*/APP_MODULES := application sdl-$LibSdlVersion sdl_main stlport jpeg png ogg flac vorbis freetype stdout-test $CompiledLibraries/" | \
+	sed "s/APP_MODULES := .*/APP_MODULES := application sdl-$LibSdlVersion sdl_main stlport jpeg png ogg flac vorbis freetype $CompiledLibraries/" | \
 	sed "s/APP_ABI := .*/APP_ABI := $MultiABI/" | \
 	sed "s/SDL_JAVA_PACKAGE_PATH := .*/SDL_JAVA_PACKAGE_PATH := $AppFullNameUnderscored/" | \
 	sed "s^SDL_CURDIR_PATH := .*^SDL_CURDIR_PATH := $DataPath^" | \
@@ -849,14 +968,15 @@ done
 cd ../../..
 
 echo Cleaning up dependencies
-rm -rf project/libs/* project/gen
+rm -rf project/libs/*/* project/gen
 for OUT in obj; do
 rm -rf project/$OUT/local/*/objs*/sdl_main/* project/$OUT/local/*/libsdl_main.so
 rm -rf project/$OUT/local/*/libsdl-*.so
+rm -rf project/$OUT/local/*/libsdl_*.so
 rm -rf project/$OUT/local/*/objs*/sdl-*/src/*/android
 rm -rf project/$OUT/local/*/objs*/sdl-*/src/video/SDL_video.o
 rm -rf project/$OUT/local/*/objs*/sdl-*/SDL_renderer_gles.o
-rm -rf project/$OUT/local/*/libsdl_fake_stdout.a project/$OUT/local/*/objs*/sdl_fake_stdout/*
+rm -rf project/$OUT/local/*/objs*/sdl_*
 # Do not rebuild several huge libraries that do not depend on SDL version
 for LIB in freetype intl jpeg png lua mad stlport tremor xerces xml2; do
 	for ARCH in armeabi armeabi-v7a; do
@@ -873,17 +993,13 @@ mkdir -p project/assets
 rm -f project/assets/*
 if [ -d "project/jni/application/src/AndroidData" ] ; then
 	echo Copying asset files
-	for F in project/jni/application/src/AndroidData/*; do
-		if [ `cat $F | wc -c` -gt 1048576 ] ; then
-			echo "Error: the file $F is bigger than 1048576 bytes - some Android devices will fail to extract such file"
-			echo "Please use HTTP download method, or split your data into several small files with command:"
-			echo "split -b 1000000 -d data.zip data.zip"
-			echo "It will create files data.zip00, data.zip01 etc, and SDL will try to search for such files in assets when unpacking data.zip"
-			exit 1
+	cp project/jni/application/src/AndroidData/* project/assets/
+	for F in project/assets/*; do
+		if [ `cat $F | wc -c` -gt 1000000 ] ; then
+			echo "The file $F is bigger than 1 megabyte - splitting it into smaller chunks"
+			split -b 1000000 -d $F $F && rm $F || { echo "Error: 'split' command not installed" ; exit 1 ; }
 		fi
 	done
-	cp -r project/jni/application/src/AndroidData/* project/assets/
-	ln -s ../libs/armeabi/stdout-test project/assets/
 fi
 
 echo Done

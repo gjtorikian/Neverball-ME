@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -44,6 +44,9 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.view.View.OnKeyListener;
+import android.view.MenuItem;
+import android.view.Menu;
+import android.view.Gravity;
 import android.text.method.TextKeyListener;
 import java.util.LinkedList;
 import java.io.SequenceInputStream;
@@ -64,11 +67,19 @@ import java.io.InputStreamReader;
 import android.view.inputmethod.InputMethodManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Message;
+import java.util.concurrent.Semaphore;
+import android.content.pm.ActivityInfo;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity
+{
 	@Override
-	protected void onCreate(Bundle savedInstanceState) {
+	protected void onCreate(Bundle savedInstanceState)
+	{
 		super.onCreate(savedInstanceState);
+
+		setRequestedOrientation(Globals.HorizontalOrientation ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
 		instance = this;
 		// fullscreen mode
@@ -82,30 +93,33 @@ public class MainActivity extends Activity {
 		System.out.println("libSDL: Creating startup screen");
 		_layout = new LinearLayout(this);
 		_layout.setOrientation(LinearLayout.VERTICAL);
-		_layout.setLayoutParams(new LinearLayout.LayoutParams( ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
+		_layout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
 		_layout2 = new LinearLayout(this);
-		_layout2.setLayoutParams(new LinearLayout.LayoutParams( ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+		_layout2.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-		_btn = new Button(this);
-		_btn.setLayoutParams(new ViewGroup.LayoutParams( ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-		_btn.setText(getResources().getString(R.string.device_change_cfg));
-		class onClickListener implements View.OnClickListener
+		if( Globals.StartupMenuButtonTimeout > 0 )
 		{
-				public MainActivity p;
-				onClickListener( MainActivity _p ) { p = _p; }
-				public void onClick(View v)
-				{
-					setUpStatusLabel();
-					System.out.println("libSDL: User clicked change phone config button");
-					Settings.showConfig(p, false);
-				}
-		};
-		_btn.setOnClickListener(new onClickListener(this));
+			_btn = new Button(this);
+			_btn.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+			_btn.setText(getResources().getString(R.string.device_change_cfg));
+			class onClickListener implements View.OnClickListener
+			{
+					public MainActivity p;
+					onClickListener( MainActivity _p ) { p = _p; }
+					public void onClick(View v)
+					{
+						setUpStatusLabel();
+						System.out.println("libSDL: User clicked change phone config button");
+						Settings.showConfig(p, false);
+					}
+			};
+			_btn.setOnClickListener(new onClickListener(this));
 
-		_layout2.addView(_btn);
+			_layout2.addView(_btn);
+		}
 
 		_layout.addView(_layout2);
-		
+
 		ImageView img = new ImageView(this);
 
 		img.setScaleType(ImageView.ScaleType.FIT_CENTER /* FIT_XY */ );
@@ -117,34 +131,60 @@ public class MainActivity extends Activity {
 		{
 			img.setImageResource(R.drawable.publisherlogo);
 		}
-		img.setLayoutParams(new ViewGroup.LayoutParams( ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
+		img.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
 		_layout.addView(img);
 		
 		_videoLayout = new FrameLayout(this);
 		_videoLayout.addView(_layout);
+
+		_ad = new Advertisement(this);
+		if( _ad.getView() != null )
+		{
+			_videoLayout.addView(_ad.getView());
+			_ad.getView().setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.RIGHT));
+		}
 		
 		setContentView(_videoLayout);
 
-		if(mAudioThread == null) // Starting from background (should not happen)
+		class Callback implements Runnable
 		{
-			System.out.println("libSDL: Loading libraries");
-			LoadLibraries();
-			mAudioThread = new AudioThread(this);
-			System.out.println("libSDL: Loading settings");
-			Settings.Load(this);
-		}
-
-		if( !Settings.settingsChanged )
-		{
-			System.out.println("libSDL: " + String.valueOf(Globals.StartupMenuButtonTimeout) + "-msec timeout in startup screen");
-			class Callback implements Runnable
+			MainActivity p;
+			Callback( MainActivity _p ) { p = _p; }
+			public void run()
 			{
-				MainActivity p;
-				Callback( MainActivity _p ) { p = _p; }
-				public void run()
+				try {
+					Thread.sleep(200);
+				} catch( InterruptedException e ) {};
+
+				if(p.mAudioThread == null)
+				{
+					System.out.println("libSDL: Loading libraries");
+					p.LoadLibraries();
+					p.mAudioThread = new AudioThread(p);
+					System.out.println("libSDL: Loading settings");
+					final Semaphore loaded = new Semaphore(0);
+					class Callback2 implements Runnable
+					{
+						public MainActivity Parent;
+						public void run()
+						{
+							Settings.Load(Parent);
+							loaded.release();
+						}
+					}
+					Callback2 cb = new Callback2();
+					cb.Parent = p;
+					p.runOnUiThread(cb);
+					loaded.acquireUninterruptibly();
+					if(!Globals.CompatibilityHacksStaticInit)
+						p.LoadApplicationLibrary(p);
+				}
+
+				if( !Settings.settingsChanged )
 				{
 					if( Globals.StartupMenuButtonTimeout > 0 )
 					{
+						System.out.println("libSDL: " + String.valueOf(Globals.StartupMenuButtonTimeout) + "-msec timeout in startup screen");
 						try {
 							Thread.sleep(Globals.StartupMenuButtonTimeout);
 						} catch( InterruptedException e ) {};
@@ -154,11 +194,9 @@ public class MainActivity extends Activity {
 					System.out.println("libSDL: Timeout reached in startup screen, process with downloader");
 					p.startDownloader();
 				}
-			};
-			Thread changeConfigAlertThread = null;
-			changeConfigAlertThread = new Thread(new Callback(this));
-			changeConfigAlertThread.start();
-		}
+			}
+		};
+		(new Thread(new Callback(this))).start();
 	}
 	
 	public void setUpStatusLabel()
@@ -203,10 +241,12 @@ public class MainActivity extends Activity {
 			return;
 		System.out.println("libSDL: Initializing video and SDL application");
 		sdlInited = true;
-		if(Globals.UseAccelerometerAsArrowKeys)
+		if(Globals.UseAccelerometerAsArrowKeys || Globals.AppUsesAccelerometer)
 			getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
 					WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 		_videoLayout.removeView(_layout);
+		if( _ad.getView() != null )
+			_videoLayout.removeView(_ad.getView());
 		_layout = null;
 		_layout2 = null;
 		_btn = null;
@@ -216,22 +256,33 @@ public class MainActivity extends Activity {
 		setContentView(_videoLayout);
 		mGLView = new DemoGLSurfaceView(this);
 		_videoLayout.addView(mGLView);
-		// Receive keyboard events
 		mGLView.setFocusableInTouchMode(true);
 		mGLView.setFocusable(true);
 		mGLView.requestFocus();
+		if( _ad.getView() != null )
+		{
+			_videoLayout.addView(_ad.getView());
+			_ad.getView().setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.RIGHT));
+		}
+		// Receive keyboard events
+		DimSystemStatusBar.get().dim(_videoLayout);
+		DimSystemStatusBar.get().dim(mGLView);
 	}
 
 	@Override
 	protected void onPause() {
-		if( downloader != null ) {
-			synchronized( downloader ) {
+		if( downloader != null )
+		{
+			synchronized( downloader )
+			{
 				downloader.setStatusField(null);
 			}
 		}
 		_isPaused = true;
 		if( mGLView != null )
 			mGLView.onPause();
+		//if( _ad.getView() != null )
+		//	_ad.getView().onPause();
 		super.onPause();
 	}
 
@@ -239,16 +290,42 @@ public class MainActivity extends Activity {
 	protected void onResume() {
 		super.onResume();
 		if( mGLView != null )
+		{
 			mGLView.onResume();
+			DimSystemStatusBar.get().dim(_videoLayout);
+			DimSystemStatusBar.get().dim(mGLView);
+		}
 		else
-		if( downloader != null ) {
-			synchronized( downloader ) {
+		if( downloader != null )
+		{
+			synchronized( downloader )
+			{
 				downloader.setStatusField(_tv);
 				if( downloader.DownloadComplete )
 					initSDL();
 			}
 		}
+		//if( _ad.getView() != null )
+		//	_ad.getView().onResume();
 		_isPaused = false;
+	}
+
+	@Override
+	public void onWindowFocusChanged (boolean hasFocus) {
+		super.onWindowFocusChanged(hasFocus);
+		System.out.println("libSDL: onWindowFocusChanged: " + hasFocus + " - sending onPause/onResume");
+		if (hasFocus == false)
+			onPause();
+		else
+			onResume();
+		/*
+		if (hasFocus == false) {
+			synchronized(textInput) {
+				// Send 'SDLK_PAUSE' (to enter pause mode) to native code:
+				DemoRenderer.nativeTextInput( 19, 19 );
+			}
+		}
+		*/
 	}
 	
 	public boolean isPaused()
@@ -257,10 +334,12 @@ public class MainActivity extends Activity {
 	}
 
 	@Override
-	protected void onDestroy() 
+	protected void onDestroy()
 	{
-		if( downloader != null ) {
-			synchronized( downloader ) {
+		if( downloader != null )
+		{
+			synchronized( downloader )
+			{
 				downloader.setStatusField(null);
 			}
 		}
@@ -270,15 +349,26 @@ public class MainActivity extends Activity {
 		System.exit(0);
 	}
 
+	public void showScreenKeyboardWithoutTextInputField()
+	{
+		_inputManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+		_inputManager.showSoftInput(mGLView, InputMethodManager.SHOW_FORCED);
+	}
+
 	public void showScreenKeyboard(final String oldText, boolean sendBackspace)
 	{
+		if(Globals.CompatibilityHacksTextInputEmulatesHwKeyboard)
+		{
+			showScreenKeyboardWithoutTextInputField();
+			return;
+		}
 		if(_screenKeyboard != null)
 			return;
-		class myKeyListener implements OnKeyListener
+		class simpleKeyListener implements OnKeyListener
 		{
 			MainActivity _parent;
 			boolean sendBackspace;
-			myKeyListener(MainActivity parent, boolean sendBackspace) { _parent = parent; this.sendBackspace = sendBackspace; };
+			simpleKeyListener(MainActivity parent, boolean sendBackspace) { _parent = parent; this.sendBackspace = sendBackspace; };
 			public boolean onKey(View v, int keyCode, KeyEvent event) 
 			{
 				if ((event.getAction() == KeyEvent.ACTION_UP) && ((keyCode == KeyEvent.KEYCODE_ENTER) || (keyCode == KeyEvent.KEYCODE_BACK)))
@@ -298,7 +388,7 @@ public class MainActivity extends Activity {
 		};
 		_screenKeyboard = new EditText(this);
 		_videoLayout.addView(_screenKeyboard);
-		_screenKeyboard.setOnKeyListener(new myKeyListener(this, sendBackspace));
+		_screenKeyboard.setOnKeyListener(new simpleKeyListener(this, sendBackspace));
 		_screenKeyboard.setHint(R.string.text_edit_click_here);
 		_screenKeyboard.setText(oldText);
 		_screenKeyboard.setKeyListener(new TextKeyListener(TextKeyListener.Capitalize.NONE, false));
@@ -330,6 +420,94 @@ public class MainActivity extends Activity {
 		mGLView.requestFocus();
 	};
 
+	final static int ADVERTISEMENT_POSITION_RIGHT = -1;
+	final static int ADVERTISEMENT_POSITION_BOTTOM = -1;
+	final static int ADVERTISEMENT_POSITION_CENTER = -2;
+
+	public void setAdvertisementPosition(int x, int y)
+	{
+		
+		if( _ad.getView() != null )
+		{
+			final FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+			layout.gravity = 0;
+			layout.leftMargin = 0;
+			layout.topMargin = 0;
+			if( x == ADVERTISEMENT_POSITION_RIGHT )
+				layout.gravity |= Gravity.RIGHT;
+			else if ( x == ADVERTISEMENT_POSITION_CENTER )
+				layout.gravity |= Gravity.CENTER_HORIZONTAL;
+			else
+			{
+				layout.gravity |= Gravity.LEFT;
+				layout.leftMargin = x;
+			}
+			if( y == ADVERTISEMENT_POSITION_BOTTOM )
+				layout.gravity |= Gravity.BOTTOM;
+			else if ( x == ADVERTISEMENT_POSITION_CENTER )
+				layout.gravity |= Gravity.CENTER_VERTICAL;
+			else
+			{
+				layout.gravity |= Gravity.TOP;
+				layout.topMargin = y;
+			}
+			class Callback implements Runnable
+			{
+				public void run()
+				{
+					_ad.getView().setLayoutParams(layout);
+				}
+			};
+			runOnUiThread(new Callback());
+		}
+	}
+	public void setAdvertisementVisible(final int visible)
+	{
+		if( _ad.getView() != null )
+		{
+			class Callback implements Runnable
+			{
+				public void run()
+				{
+					if( visible == 0 )
+						_ad.getView().setVisibility(View.GONE);
+					else
+						_ad.getView().setVisibility(View.VISIBLE);
+				}
+			}
+			runOnUiThread(new Callback());
+		}
+	}
+
+	public void getAdvertisementParams(int params[])
+	{
+		for( int i = 0; i < 5; i++ )
+			params[i] = 0;
+		if( _ad.getView() != null )
+		{
+			params[0] = (_ad.getView().getVisibility() == View.VISIBLE) ? 1 : 0;
+			FrameLayout.LayoutParams layout = (FrameLayout.LayoutParams) _ad.getView().getLayoutParams();
+			params[1] = layout.leftMargin;
+			params[2] = layout.topMargin;
+			params[3] = _ad.getView().getMeasuredWidth();
+			params[4] = _ad.getView().getMeasuredHeight();
+		}
+	}
+	public void requestNewAdvertisement()
+	{
+		if( _ad.getView() != null )
+		{
+			class Callback implements Runnable
+			{
+				public void run()
+				{
+					_ad.requestNewAd();
+				}
+			}
+			runOnUiThread(new Callback());
+		}
+	}
+
 	@Override
 	public boolean onKeyDown(int keyCode, final KeyEvent event)
 	{
@@ -347,7 +525,7 @@ public class MainActivity extends Activity {
 			if( downloader.DownloadFailed )
 				System.exit(1);
 			if( !downloader.DownloadComplete )
-			 onStop();
+				onStop();
 		}
 		else
 		if( keyListener != null )
@@ -367,15 +545,30 @@ public class MainActivity extends Activity {
 		{
 			if( mGLView.nativeKey( keyCode, 0 ) == 0 )
 				return super.onKeyUp(keyCode, event);
+			if( keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_MENU )
+			{
+				DimSystemStatusBar.get().dim(_videoLayout);
+				DimSystemStatusBar.get().dim(mGLView);
+			}
 		}
 		return true;
 	}
-	
+
 	@Override
 	public boolean dispatchTouchEvent(final MotionEvent ev)
 	{
+		//System.out.println("dispatchTouchEvent: " + ev.getAction() + " coords " + ev.getX() + ":" + ev.getY() );
 		if(_screenKeyboard != null)
 			_screenKeyboard.dispatchTouchEvent(ev);
+		else
+		if( _ad.getView() != null && // User clicked the advertisement, ignore when user moved finger from game screen to advertisement or touches screen with several fingers
+			((ev.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN ||
+			(ev.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_UP) &&
+			_ad.getView().getLeft() <= (int)ev.getX() &&
+			_ad.getView().getRight() > (int)ev.getX() &&
+			_ad.getView().getTop() <= (int)ev.getY() &&
+			_ad.getView().getBottom() > (int)ev.getY() )
+			return super.dispatchTouchEvent(ev);
 		else
 		if(mGLView != null)
 			mGLView.onTouchEvent(ev);
@@ -391,6 +584,7 @@ public class MainActivity extends Activity {
 	@Override
 	public boolean dispatchGenericMotionEvent (MotionEvent ev)
 	{
+		//System.out.println("dispatchGenericMotionEvent: " + ev.getAction() + " coords " + ev.getX() + ":" + ev.getY() );
 		// This code fails to run for Android 1.6, so there will be no generic motion event for Andorid screen keyboard
 		/*
 		if(_screenKeyboard != null)
@@ -476,6 +670,7 @@ public class MainActivity extends Activity {
 				}
 				catch( UnsatisfiedLinkError e )
 				{
+					System.out.println("libSDL: error loading lib " + l + ": " + e.toString());
 					System.loadLibrary(l);
 				}
 			}
@@ -665,6 +860,37 @@ public class MainActivity extends Activity {
 
 	};
 
+	public static void LoadApplicationLibrary(final Context context)
+	{
+		String libs[] = { "application", "sdl_main" };
+		try
+		{
+			for(String l : libs)
+			{
+				System.loadLibrary(l);
+			}
+		}
+		catch ( UnsatisfiedLinkError e )
+		{
+			System.out.println("libSDL: error loading lib: " + e.toString());
+			try
+			{
+				for(String l : libs)
+				{
+					String libname = System.mapLibraryName(l);
+					File libpath = new File(context.getCacheDir(), libname);
+					System.out.println("libSDL: loading lib " + libpath.getPath());
+					System.load(libpath.getPath());
+					libpath.delete();
+				}
+			}
+			catch ( UnsatisfiedLinkError ee )
+			{
+				System.out.println("libSDL: error loading lib: " + ee.toString());
+			}
+		}
+	}
+
 	public int getApplicationVersion()
 	{
 		try {
@@ -688,6 +914,7 @@ public class MainActivity extends Activity {
 	private Button _btn = null;
 	private LinearLayout _layout = null;
 	private LinearLayout _layout2 = null;
+	private Advertisement _ad = null;
 
 	private FrameLayout _videoLayout = null;
 	private EditText _screenKeyboard = null;
@@ -699,4 +926,45 @@ public class MainActivity extends Activity {
 
 	public LinkedList<Integer> textInput = new LinkedList<Integer> ();
 	public static MainActivity instance = null;
+}
+
+// *** HONEYCOMB / ICS FIX FOR FULLSCREEN MODE, by lmak ***
+abstract class DimSystemStatusBar
+{
+	public static DimSystemStatusBar get()
+	{
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.HONEYCOMB)
+			return DimSystemStatusBarHoneycomb.Holder.sInstance;
+		else
+			return DimSystemStatusBarDummy.Holder.sInstance;
+	}
+	public abstract void dim(final View view);
+
+	private static class DimSystemStatusBarHoneycomb extends DimSystemStatusBar
+	{
+		private static class Holder
+		{
+			private static final DimSystemStatusBarHoneycomb sInstance = new DimSystemStatusBarHoneycomb();
+		}
+	    public void dim(final View view)
+	    {
+	         /*
+	         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+	            // ICS has the same constant redefined with a different name.
+	            hiddenStatusCode = android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE;
+	         }
+	         */
+	         view.setSystemUiVisibility(android.view.View.STATUS_BAR_HIDDEN);
+	   }
+	}
+	private static class DimSystemStatusBarDummy extends DimSystemStatusBar
+	{
+		private static class Holder
+		{
+			private static final DimSystemStatusBarDummy sInstance = new DimSystemStatusBarDummy();
+		}
+		public void dim(final View view)
+		{
+		}
+	}
 }

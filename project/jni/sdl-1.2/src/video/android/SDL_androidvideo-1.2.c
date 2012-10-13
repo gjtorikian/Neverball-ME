@@ -232,12 +232,12 @@ int ANDROID_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	if( SDL_ANDROID_BITSPERPIXEL == 24 )
 		PixelFormatEnum = SDL_PIXELFORMAT_RGB24;
 	if( SDL_ANDROID_BITSPERPIXEL == 32 )
-		PixelFormatEnum = SDL_PIXELFORMAT_RGBA8888;
+		PixelFormatEnum = SDL_PIXELFORMAT_ABGR8888;
 
 	if( SDL_ANDROID_BITSPERPIXEL >= 24 )
 	{
-		PixelFormatEnumAlpha = SDL_PIXELFORMAT_RGBA8888;
-		PixelFormatEnumColorkey = SDL_PIXELFORMAT_RGBA8888;
+		PixelFormatEnumAlpha = SDL_PIXELFORMAT_ABGR8888;
+		PixelFormatEnumColorkey = SDL_PIXELFORMAT_ABGR8888;
 	}
 
 	SDL_memset(&alphaFormat, 0, sizeof(alphaFormat));
@@ -307,12 +307,21 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 		return NULL;
 	}
 
+	if( SDL_ANDROID_VideoForceSoftwareMode )
+	{
+		if( flags & SDL_HWSURFACE )
+			__android_log_print(ANDROID_LOG_INFO, "libSDL", "SDL_SetVideoMode(): application requested hardware video mode - forcing software video mode");
+		if( flags & SDL_OPENGL )
+			__android_log_print(ANDROID_LOG_INFO, "libSDL", "Error: application requested OpenGL context - SDL will ignore this. Set SwVideoMode=n inside AndroidAppSettings.cfg to enable OpenGL inside SDL.");
+		flags = (flags & SDL_FULLSCREEN) | (flags & SDL_DOUBLEBUF);
+	}
+
 	sdl_opengl = (flags & SDL_OPENGL) ? 1 : 0;
 
 	SDL_ANDROID_sFakeWindowWidth = width;
 	SDL_ANDROID_sFakeWindowHeight = height;
 
-	current->flags = (flags & SDL_FULLSCREEN) | (flags & SDL_OPENGL) | SDL_DOUBLEBUF | ( flags & SDL_HWSURFACE );
+	current->flags = (flags & SDL_FULLSCREEN) | (flags & SDL_OPENGL) | SDL_DOUBLEBUF | (flags & SDL_HWSURFACE);
 	current->w = width;
 	current->h = height;
 	current->pitch = SDL_ANDROID_sFakeWindowWidth * SDL_ANDROID_BYTESPERPIXEL;
@@ -359,7 +368,7 @@ SDL_Surface *ANDROID_SetVideoMode(_THIS, SDL_Surface *current,
 				SDL_OutOfMemory();
 				return(NULL);
 			}
-			if( SDL_ANDROID_SmoothVideo )
+			if( SDL_ANDROID_VideoLinearFilter )
 				SDL_SetTextureScaleMode((SDL_Texture *)current->hwdata, SDL_SCALEMODE_SLOW);
 
 			// Register main video texture to be recreated when needed
@@ -456,7 +465,13 @@ static int ANDROID_AllocHWSurface(_THIS, SDL_Surface *surface)
 	}
 
 	if ( ! (surface->w && surface->h) )
-		return(-1);
+		return -1;
+
+	if( SDL_ANDROID_VideoForceSoftwareMode )
+	{
+		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "SDL_SetVideoMode(): ignoring application attempt to allocate HW surface");
+		return -1;
+	}
 
 	DEBUGOUT("ANDROID_AllocHWSurface() surface %p w %d h %d", surface, surface->w, surface->h);
 	Uint32 format = PixelFormatEnumColorkey; // 1-bit alpha for color key, every surface will have colorkey so it's easier for us
@@ -503,7 +518,7 @@ static int ANDROID_AllocHWSurface(_THIS, SDL_Surface *surface)
 		return(-1);
 	}
 
-	if( SDL_ANDROID_SmoothVideo )
+	if( SDL_ANDROID_VideoLinearFilter )
 		SDL_SetTextureScaleMode((SDL_Texture *)surface->hwdata, SDL_SCALEMODE_SLOW);
 
 	if( surface->format->Amask )
@@ -514,7 +529,6 @@ static int ANDROID_AllocHWSurface(_THIS, SDL_Surface *surface)
 	
 	surface->flags |= SDL_HWSURFACE | SDL_HWACCEL;
 	
-
 	HwSurfaceCount++;
 	DEBUGOUT("ANDROID_AllocHWSurface() in HwSurfaceCount %d HwSurfaceList %p", HwSurfaceCount, HwSurfaceList);
 	HwSurfaceList = SDL_realloc( HwSurfaceList, HwSurfaceCount * sizeof(SDL_Surface *) );
@@ -554,9 +568,7 @@ static void ANDROID_FreeHWSurface(_THIS, SDL_Surface *surface)
 		}
 	}
 	if( i != -1 )
-	{
 		SDL_SetError("ANDROID_FreeHWSurface: cannot find freed HW surface in HwSurfaceList array");
-	}
 }
 
 static int ANDROID_LockHWSurface(_THIS, SDL_Surface *surface)
@@ -592,7 +604,7 @@ static int ANDROID_LockHWSurface(_THIS, SDL_Surface *surface)
 				SDL_OutOfMemory();
 				return(-1);
 			}
-			if( SDL_ANDROID_SmoothVideo )
+			if( SDL_ANDROID_VideoLinearFilter )
 				SDL_SetTextureScaleMode((SDL_Texture *)SDL_CurrentVideoSurface->hwdata, SDL_SCALEMODE_SLOW);
 			// Register main video texture to be recreated when needed
 			HwSurfaceCount++;
@@ -1080,6 +1092,7 @@ void SDL_ANDROID_VideoContextRecreated()
 		{
 			// Allocate HW texture
 			Uint32 format = PixelFormatEnumColorkey; // 1-bit alpha for color key, every surface will have colorkey so it's easier for us
+			int flags = HwSurfaceList[i]->flags;
 			if( HwSurfaceList[i]->format->Amask )
 				format = PixelFormatEnumAlpha;
 			if( HwSurfaceList[i] == SDL_CurrentVideoSurface )
@@ -1090,9 +1103,23 @@ void SDL_ANDROID_VideoContextRecreated()
 				SDL_OutOfMemory();
 				return;
 			}
-			if( SDL_ANDROID_SmoothVideo )
+			if( SDL_ANDROID_VideoLinearFilter )
 				SDL_SetTextureScaleMode((SDL_Texture *)HwSurfaceList[i]->hwdata, SDL_SCALEMODE_SLOW);
-			ANDROID_UnlockHWSurface(NULL, HwSurfaceList[i]); // Re-fill texture with graphics
+			if (flags & SDL_SRCALPHA)
+			{
+				int alpha = HwSurfaceList[i]->format->alpha;
+				ANDROID_SetHWAlpha(NULL, HwSurfaceList[i], alpha);
+				ANDROID_UnlockHWSurface(NULL, HwSurfaceList[i]); // Re-fill texture with graphics
+			}
+			else if (flags & SDL_SRCCOLORKEY)
+			{
+				int colorkey = HwSurfaceList[i]->format->colorkey;
+				ANDROID_SetHWColorKey(NULL, HwSurfaceList[i], colorkey);
+			}
+			else
+			{
+				ANDROID_UnlockHWSurface(NULL, HwSurfaceList[i]); // Re-fill texture with graphics
+			}
 		}
 	}
 };
@@ -1144,15 +1171,18 @@ void SDL_ANDROID_MultiThreadedVideoLoopInit()
 
 void SDL_ANDROID_MultiThreadedVideoLoop()
 {
+	int lastUpdate = SDL_GetTicks(); // For compat mode
+	int nextUpdateDelay = 100; // For compat mode
 	while(1)
 	{
 		int signalNeeded = 0;
 		int swapBuffersNeeded = 0;
 		int ret;
+		int currentTime;
 		SDL_mutexP(videoThread.mutex);
 		videoThread.threadReady = 1;
 		SDL_CondSignal(videoThread.cond2);
-		ret = SDL_CondWaitTimeout(videoThread.cond, videoThread.mutex, SDL_ANDROID_CompatibilityHacks ? 100 : 1000);
+		ret = SDL_CondWaitTimeout(videoThread.cond, videoThread.mutex, SDL_ANDROID_CompatibilityHacks ? nextUpdateDelay : 1000);
 		if( videoThread.execute )
 		{
 			videoThread.threadReady = 0;
@@ -1169,21 +1199,44 @@ void SDL_ANDROID_MultiThreadedVideoLoop()
 					ANDROID_VideoQuit(videoThread._this);
 					break;
 				case CMD_UPDATERECTS:
-					ANDROID_FlipHWSurfaceInternal(videoThread.numrects, videoThread.rects);
-					swapBuffersNeeded = 1;
+					if( SDL_ANDROID_CompatibilityHacks ) // DIRTY HACK for MilkyTracker - DO NOT update screen when application requests that, update 50 ms later
+					{
+						if( nextUpdateDelay >= 100 )
+							nextUpdateDelay = 50;
+						else
+							nextUpdateDelay = lastUpdate + 50 - (int)SDL_GetTicks();
+					}
+					else
+					{
+						ANDROID_FlipHWSurfaceInternal(videoThread.numrects, videoThread.rects);
+						swapBuffersNeeded = 1;
+					}
 					break;
 				case CMD_FLIP:
-					ANDROID_FlipHWSurfaceInternal(0, NULL);
-					swapBuffersNeeded = 1;
+					if( SDL_ANDROID_CompatibilityHacks ) // DIRTY HACK for MilkyTracker - DO NOT update screen when application requests that, update 50 ms later
+					{
+						if( nextUpdateDelay >= 100 )
+							nextUpdateDelay = 50;
+						else
+							nextUpdateDelay = lastUpdate + 50 - (int)SDL_GetTicks();
+					}
+					else
+					{
+						ANDROID_FlipHWSurfaceInternal(0, NULL);
+						swapBuffersNeeded = 1;
+					}
 					break;
 			}
 			videoThread.execute = 0;
 			signalNeeded = 1;
 		}
-		else if( SDL_ANDROID_CompatibilityHacks && ret == SDL_MUTEX_TIMEDOUT && SDL_CurrentVideoSurface )
+		if( SDL_ANDROID_CompatibilityHacks && SDL_CurrentVideoSurface &&
+				( ret == SDL_MUTEX_TIMEDOUT || nextUpdateDelay <= 0 ) )
 		{
 			ANDROID_FlipHWSurfaceInternal(0, NULL);
 			swapBuffersNeeded = 1;
+			lastUpdate = SDL_GetTicks();
+			nextUpdateDelay = 100;
 		}
 		SDL_mutexV(videoThread.mutex);
 		if( signalNeeded )

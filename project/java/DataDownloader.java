@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -59,7 +59,8 @@ import java.lang.String;
 import android.text.SpannedString;
 
 
-class CountingInputStream extends BufferedInputStream {
+class CountingInputStream extends BufferedInputStream
+{
 
 	private long bytesReadMark = 0;
 	private long bytesRead = 0;
@@ -122,6 +123,9 @@ class CountingInputStream extends BufferedInputStream {
 
 class DataDownloader extends Thread
 {
+
+	public static final String DOWNLOAD_FLAG_FILENAME = "libsdl-DownloadFinished-";
+
 	class StatusWriter
 	{
 		private TextView Status;
@@ -200,7 +204,7 @@ class DataDownloader extends Thread
 				( Globals.OptionalDataDownload.length > i && Globals.OptionalDataDownload[i] ) ||
 				( Globals.OptionalDataDownload.length <= i && downloadFiles[i].indexOf("!") == 0 ) )
 			{
-				if( ! DownloadDataFile(downloadFiles[i], "libsdl-DownloadFinished-" + String.valueOf(i) + ".flag", count+1, total) )
+				if( ! DownloadDataFile(downloadFiles[i], DOWNLOAD_FLAG_FILENAME + String.valueOf(i) + ".flag", count+1, total) )
 				{
 					DownloadFailed = true;
 					return;
@@ -231,7 +235,9 @@ class DataDownloader extends Thread
 			try {
 				byte b[] = new byte[ Globals.DataDownloadUrl.getBytes("UTF-8").length + 1 ];
 				int readed = checkFile.read(b);
-				String compare = new String( b, 0, readed, "UTF-8" );
+				String compare = "";
+				if( readed > 0 )
+					compare = new String( b, 0, readed, "UTF-8" );
 				boolean matched = false;
 				//System.out.println("Read URL: '" + compare + "'");
 				for( int i = 1; i < downloadUrls.length; i++ )
@@ -286,8 +292,22 @@ class DataDownloader extends Thread
 			Status.setText( downloadCount + "/" + downloadTotal + ": " + res.getString(R.string.connecting_to, url) );
 			if( url.indexOf("http://") == -1 && url.indexOf("https://") == -1 ) // File inside assets
 			{
-				System.out.println("Fetching file from assets: " + url);
+				InputStream stream1 = null;
+				try {
+					stream1 = Parent.getAssets().open(url);
+					stream1.close();
+				} catch( Exception e ) {
+					try {
+						stream1 = Parent.getAssets().open(url + "00");
+						stream1.close();
+					} catch( Exception ee ) {
+						System.out.println("Failed to open file in assets: " + url);
+						downloadUrlIndex++;
+						continue;
+					}
+				}
 				FileInAssets = true;
+				System.out.println("Fetching file from assets: " + url);
 				break;
 			}
 			else
@@ -460,6 +480,7 @@ class DataDownloader extends Thread
 
 				OutputStream out = null;
 				path = getOutFilePath(entry.getName());
+				float percent = 0.0f;
 
 				System.out.println("Saving file '" + path + "'");
 
@@ -480,6 +501,9 @@ class DataDownloader extends Thread
 						throw new Exception();
 					}
 					System.out.println("File '" + path + "' exists and passed CRC check - not overwriting it");
+					if( totalLen > 0 )
+						percent = stream.getBytesRead() * 100.0f / totalLen;
+					Status.setText( downloadCount + "/" + downloadTotal + ": " + res.getString(R.string.dl_progress, percent, path) );
 					continue;
 				} catch( Exception e ) { }
 
@@ -497,7 +521,6 @@ class DataDownloader extends Thread
 					return false;
 				}
 
-				float percent = 0.0f;
 				if( totalLen > 0 )
 					percent = stream.getBytesRead() * 100.0f / totalLen;
 				Status.setText( downloadCount + "/" + downloadTotal + ": " + res.getString(R.string.dl_progress, percent, path) );
@@ -599,6 +622,8 @@ class DataDownloader extends Thread
 	
 	private static DefaultHttpClient HttpWithDisabledSslCertCheck()
 	{
+		return new DefaultHttpClient();
+		// This code does not work
 		/*
         HostnameVerifier hostnameVerifier = org.apache.http.conn.ssl.SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
 
@@ -614,8 +639,7 @@ class DataDownloader extends Thread
         HttpsURLConnection.setDefaultHostnameVerifier(hostnameVerifier);
 
         return http;
-        */
-        return new DefaultHttpClient();
+		*/
 	}
 	
 	public StatusWriter Status;

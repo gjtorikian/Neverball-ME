@@ -1,4 +1,6 @@
 This is SDL 1.2 and 1.3 ported to Google Android (also bunch of other libs included).
+Sources or patches of the individual games are in the directory project/jni/application.
+
 The libsdl.org now has an official SDL 1.3 Android port, which is more recent and
 better suited for creating new applications from scratch, this port is focused mainly
 on SDL 1.2 and compiling existing applications, it's up to you to decide which port is better.
@@ -8,7 +10,7 @@ Also this port is developed very slowly, although the same is true for an offici
 Installation
 ============
 
-This project should be compiled with Android 3.1 SDK (API level 12) and NDK r6 or r5c,
+This project should be compiled with Android 3.1 SDK (API level 15) and NDK r8, r7c, r6 or r5c,
 google for them and install them as described in their docs.
 You'll need to install Java Ant too.
 The application will run on Android OS 1.6 and above, don't mind the 3.1 dependency.
@@ -21,6 +23,7 @@ running inside Windows, then install Linux toolchain on it.
 https://sourceforge.net/projects/portableubuntu/
 Cygwin is not supported by the NDK, starting from the NDK r6.
 
+
 How to compile demo application
 ===============================
 
@@ -28,12 +31,19 @@ Launch commands
 	rm project/jni/application/src
 	ln -s ballfield project/jni/application/src
 	./ChangeAppSettings.sh -a
-	android update project -p project -t android-12
+	android update project -p project -t android-15
 Then edit file build.sh if needed to add NDK dir to your PATH, then launch it.
 It will compile a bunch of libs under project/libs/armeabi,
-create file project/bin/DemoActivity-debug.apk and install it on your device or emulator.
+create Android package file project/bin/MainActivity-debug.apk,
+and install it to your device or emulator, if you specify option -i or -r to build.sh.
 Then you can test it by launching Ballfield icon from Android applications menu.
-It's designed for 320x240, so if you have smaller screen it will be resized.
+
+There are other applications inside project/jni/application directory,
+some of them are referenced using Git submodule mechanism, you may download them using command
+git submodule update --init
+Some of them may be outdated and won't compile, some contain only patch file and no sources,
+so you should check out Git logs before compiling a particular app, and checkout whole repo at that date:
+gitk project/jni/application/<directory>
 
 The game enforces horizontal screen orientation, you may slide-open your keyboard if you have it
 and use it for additional keys - the device will just keep current screen orientation.
@@ -41,11 +51,14 @@ Recent Android phone models like HTC Evo have no keyboard at all, on-screen keyb
 is available for such devices - it has joystick (which can be configured as arrow buttons or analog joystick),
 and 6 configurable keys, full text input is toggled with 7-th key. Both user and application may redefine
 button layout and returned keycodes, and also toggle full text input - see SDL_screenkeyboard.h.
+Also you can read multitouch events and accelerometer events - they are passed as joystick events,
+see Ballfield sample app for the input event handling code.
 
 This port also supports GL ES + SDL combo - there is GLXGears demo app in project/jni/application/glxgears,
 to compile it remove project/jni/application/src symlink and make new one pointing to glxgears, and run build.sh
 Note that GL ES is NOT pure OpenGL - there are no glBegin() and glEnd() call and other widely used functions,
 and generally it will take a lot of effort to port OpenGL application to GL ES.
+
 
 How to compile your own application
 ===================================
@@ -82,9 +95,14 @@ and the Java code is a part of SDL lib, the application generally should not car
 You may take AndroidAppSettings.cfg file from some other application to get sane defaults,
 you may launch ChangeAppSettings.sh with -a or -v parameter to skip questions altogether or to ask only version code.
 The C++ files shall have .cpp extension to be compiled, rename them if necessary.
-Also you have to create an icon image file at project/res/drawable/icon.png, and you may create a file
+Also you have to create an icon image file at project/jni/application/src/icon.png, and you may create a file
 project/jni/application/src/AndroidData/logo.png to be used as a splash screen image.
 Then you may launch build.sh.
+
+C++ RTTI and exceptions give very slight memory overhead, if you need them -
+add "-frtti -fexceptions" to the AppCflags inside AndroidAppSettings.cfg
+If you use autoconf/automake/configure scripts with setEnvironment.sh, you may write
+env CXXFLAGS='-frtti -fexceptions' ../setEnvironment.sh ./configure
 
 Application data may be bundled with app itself, or downloaded from the internet on the first run -
 if you want to put app data inside .apk file - create a .zip archive and put it into the directory
@@ -94,33 +112,23 @@ on public HTTP server - you may specify URL in ChangeAppSettings.sh, also you ma
 If you'll release new version of data files you should change download URL or data file name and update your app as well -
 the app will re-download the data if URL does not match the saved URL from previous download.
 
-All devices have different screen resolutions, you may toggle automatic
-screen resizing in ChangeAppSettings.sh and draw to virtual 640x480 screen -
-it will be HW accelerated and will not impact performance.
-SDL_ListModes()[0] will always return native screen resolution.
+All devices have different screen resolutions, you may toggle automatic screen resizing
+in ChangeAppSettings.sh and draw to virtual 640x480 screen - it will be HW accelerated
+and will not impact performance. Automatic screen resizing does not work in SDL 1.3/2.0.
+SDL_GetVideoInfo() or SDL_ListModes(NULL, 0)[0] will always return native screen resolution.
 Also make sure that your HW textures are not wider than 1024 pixels, or it will fail to allocate such
 texture on HTC G1, and other low-end devices. Software surfaces may be of any size of course.
 
 If you want HW acceleration - just use OpenGL, that's the easiest and most cross-platform way,
-however if you'll use on-screen keyboard (even the text input button) the OpenGL state will get
-screwed after each frame - after each SDL_Flip() you'll need to call:
-
-glEnable(GL_TEXTURE_2D);
-glBindTexture(GL_TEXTURE_2D, your_texture_id);
-glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-glEnable(GL_BLEND);
-glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-Previously I've got the code to save/restore OpenGL state, but it doens't work on every device -
-you may wish to uncomment it inside file SDL_touchscreenkeyboard.c in functions beginDrawingTex() and endDrawingTex().
+however note that on-screen keyboard (even the text input button) is also drawn using OpenGL,
+so it might mess up your GL state (although it should not do that due to recent code changes).
 
 If you don't use on-screen keyboard you don't need to reinit OpenGL state - set following in AndroidAppSettings.cfg:
 AppNeedsArrowKeys=n
 AppNeedsTextInput=n
 AppTouchscreenKeyboardKeysAmount=0
 
-SDL supports HW acceleration, however it has many limitations:
+SDL 1.2 supports HW acceleration, however it has many limitations:
 You should use 16-bit color depth.
 You cannot blit SW surface to screen, it should be only HW surface.
 You can use colorkey, per-surface alpha and per-pixel alpha with HW surfaces.
@@ -170,6 +178,8 @@ SDL_BlitSurface(SDL_GetVideoSurface(), sourceRect, sprite, &targetRect);
 
 // ----- End of example
 
+To get HW acceleration in SDL 1.3/2.0 just follow the instructions on libsdl.org
+
 If you'll add new libs - add them to project/jni/, copy Android.mk from existing lib, and
 add libname to project/jni/<yourapp>/Android.mk
 Also you'll need to move all include files to <libname>/include dir.
@@ -182,6 +192,15 @@ http://www.libsdl.org/projects/mixer/timidity/timidity.tar.gz
 unpack it and put "timidity" dir into your game data zipfile.
 Or you may paste this URL directly as an optional download in ChangeAppSettings.sh:
 MIDI music support (18 Mb)|http://sourceforge.net/projects/libsdl-android/files/timidity.zip/download
+
+SDL by default listens to the Volume Up and Volume Down hardware keys, and sends them to the application,
+instead of changing volume. Most users expect those keys to actually change volume, instead of performing some in-game action.
+To make SDL ignore those keys, and let the Android framework handle them instead, set
+RedefinedKeys="XXX YYY NO_REMAP NO_REMAP ZZZ BBB CCC" inside AndroidAppSettings.cfg, that is,
+the third and fourth keycode should be a special value "NO_REMAP" instead of SDL keycode.
+XXX, YYY and ZZZ are placeholders for SDL keycodes of other hardware keys -
+XXX is sent when user touches the screen and app is not using mouse or multitouch,
+YYY is for DPAD_CENTER/SEARCH keys, ZZZ is for MENU key, BBB is for BACK key, CCC is for CAMERA key.
 
 The ARM architecture has some limitations which you have to be aware about -
 if you'll access integer that's not 4-byte aligned you'll get garbage instead of correct value,
@@ -206,6 +225,10 @@ and it will remove them from internal storage right after starting up,
 so you still need that space free, but only temporarily. 
 However your application will start up slower.
 
+SDL supports AdMob advertisements, you need to set your publisher ID inside AndroidAppSettings.cfg,
+see project test-advertisements for details.
+Also you can hide or reposition your ad from C code, check out file SDL_android.h for details.
+
 
 How to compile your own application using automake/configure scripts
 ====================================================================
@@ -218,6 +241,7 @@ generate file project/jni/application/src/libapplication.so, which will be copie
 There is helper script project/jni/application/setEnvironment.sh which will set CFLAGS and LDFLAGS
 for configure script and makefile, see AndroidBuild.sh in project/jni/application/scummvm dir for reference.
 
+
 Android application sleep/resume support
 ========================================
 
@@ -229,11 +253,11 @@ SDL_ANDROID_SetApplicationPutToBackgroundCallback( callback_t appPutToBackground
 where callback_t is function pointer of type "void (*) void".
 The default callbacks will call another Android-specific functions:
 SDL_ANDROID_PauseAudioPlayback() and SDL_ANDROID_ResumeAudioPlayback()
-which will pause and resume audio from HW layer, so appplication does not need to destroy and re-init audio.
+which will pause and resume audio from HW layer, so appplication does not need to destroy and re-init audio,
+and in general you don't need to redefine those functions, unless you want to play audio in background.
 Also, the usual event SDL_ACTIVEEVENT with flag SDL_APPACTIVE will be sent when that happens,
 and also SDL_VIDEORESIZE event will be sent (the same behavior as in MacOsX SDL implementation).
-If you're using OpenAL for an audio playback you have to call functions al_android_pause_playback()
-and al_android_resume_playback() by yourself when SDL calls your callbacks.
+If you're using OpenAL it will be paused automatically when your app goes to background.
 
 If you're using pure SDL 1.2 API (with or without HW acceleration) you don't need to worry about anything -
 the SDL itself will re-create GL textures and fill them with pixel data from existing SDL HW surfaces,
@@ -292,7 +316,6 @@ while( SDL_PollEvent(&evt) )
 	}
 }
 
-Note that I did not test that code yet, so test reports are appreciated.
 
 Quick guide to debug native code
 ================================
@@ -379,3 +402,4 @@ using them, otherwise you'll have to release your whole application sources unde
 
 The "Ultimate Droid" on-screen keyboard theme by Sean Stieber is licensed under Creative Commons - Attribution license.
 The "Simple Theme" on-screen keyboard theme by Dmitry Matveev is licensed under zlib license.
+The "Sun" on-screen keyboard theme by Sirea (Martina Smejkalova) is licensed under Creative Commons - Attribution license.

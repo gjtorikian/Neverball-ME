@@ -44,6 +44,8 @@
 #include "jniwrapperstuff.h"
 #include "atan2i.h"
 
+#define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
+#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 
 static SDLKey SDL_android_keymap[KEYCODE_LAST+1];
 
@@ -78,45 +80,49 @@ static int moveMouseWithKbAccelUpdateNeeded = 0;
 static int maxForce = 0;
 static int maxRadius = 0;
 int SDL_ANDROID_isJoystickUsed = 0;
+static int SDL_ANDROID_isAccelerometerUsed = 0;
 static int isMultitouchUsed = 0;
 SDL_Joystick *SDL_ANDROID_CurrentJoysticks[MAX_MULTITOUCH_POINTERS+1] = {NULL};
 static int TrackballDampening = 0; // in milliseconds
 static Uint32 lastTrackballAction = 0;
 enum { TOUCH_PTR_UP = 0, TOUCH_PTR_MOUSE = 1, TOUCH_PTR_SCREENKB = 2 };
-int touchPointers[MAX_MULTITOUCH_POINTERS] = {0};
-int firstMousePointerId = -1;
+static int touchPointers[MAX_MULTITOUCH_POINTERS] = {0};
+static int firstMousePointerId = -1;
 enum { MAX_MULTITOUCH_GESTURES = 4 };
-int multitouchGestureKeycode[MAX_MULTITOUCH_GESTURES] = {
+static int multitouchGestureKeycode[MAX_MULTITOUCH_GESTURES] = {
 SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_SCREENKB_KEYCODE_6)),
 SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_SCREENKB_KEYCODE_7)),
 SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_SCREENKB_KEYCODE_8)),
 SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_SCREENKB_KEYCODE_9))
 };
-int multitouchGestureKeyPressed[MAX_MULTITOUCH_GESTURES] = { 0, 0, 0, 0 };
-int multitouchGestureSensitivity = 0;
-int multitouchGestureDist = -1;
-int multitouchGestureAngle = 0;
-int multitouchGestureX = -1;
-int multitouchGestureY = -1;
+static int multitouchGestureKeyPressed[MAX_MULTITOUCH_GESTURES] = { 0, 0, 0, 0 };
+static int multitouchGestureSensitivity = 0;
+static int multitouchGestureDist = -1;
+static int multitouchGestureAngle = 0;
+static int multitouchGestureX = -1;
+static int multitouchGestureY = -1;
 int SDL_ANDROID_TouchscreenCalibrationWidth = 480;
 int SDL_ANDROID_TouchscreenCalibrationHeight = 320;
 int SDL_ANDROID_TouchscreenCalibrationX = 0;
 int SDL_ANDROID_TouchscreenCalibrationY = 0;
-int leftClickTimeout = 0;
-int rightClickTimeout = 0;
-int mouseInitialX = -1;
-int mouseInitialY = -1;
-unsigned int mouseInitialTime = 0;
-volatile int deferredMouseTap = 0;
-int relativeMovement = 0;
-int relativeMovementSpeed = 2;
-int relativeMovementAccel = 0;
-int relativeMovementX = 0;
-int relativeMovementY = 0;
-unsigned int relativeMovementTime = 0;
-int oldMouseX = 0;
-int oldMouseY = 0;
-int oldMouseButtons = 0;
+static int leftClickTimeout = 0;
+static int rightClickTimeout = 0;
+static int mouseInitialX = -1;
+static int mouseInitialY = -1;
+static unsigned int mouseInitialTime = 0;
+static volatile int deferredMouseTap = 0;
+static int relativeMovement = 0;
+static int relativeMovementSpeed = 2;
+static int relativeMovementAccel = 0;
+static int relativeMovementX = 0;
+static int relativeMovementY = 0;
+static unsigned int relativeMovementTime = 0;
+static int currentMouseX = 0;
+static int currentMouseY = 0;
+static int currentMouseButtons = 0;
+
+static int hardwareMouseDetected = 0;
+enum { MOUSE_HW_BUTTON_LEFT = 1, MOUSE_HW_BUTTON_RIGHT = 2, MOUSE_HW_BUTTON_MIDDLE = 4, MOUSE_HW_BUTTON_BACK = 8, MOUSE_HW_BUTTON_FORWARD = 16, MOUSE_HW_BUTTON_MAX = MOUSE_HW_BUTTON_FORWARD };
 
 static int UnicodeToUtf8(int src, char * dest)
 {
@@ -265,7 +271,7 @@ void UpdateScreenUnderFingerRect(int x, int y)
 
 
 JNIEXPORT void JNICALL 
-JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, jint x, jint y, jint action, jint pointerId, jint force, jint radius )
+JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMotionEvent) ( JNIEnv*  env, jobject  thiz, jint x, jint y, jint action, jint pointerId, jint force, jint radius )
 {
 	// TODO: this method is damn huge
 	int i;
@@ -351,7 +357,7 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 			}
 		}
 	}
-	else
+	else if( !hardwareMouseDetected )
 	{
 		if( firstMousePointerId != pointerId )
 		{
@@ -432,19 +438,17 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 #if SDL_VERSION_ATLEAST(1,3,0)
 		// Use nifty SDL 1.3 multitouch API
 		if( action == MOUSE_MOVE )
-			SDL_ANDROID_MainThreadPushMultitouchMotion(pointerId, x, y, force*radius / 16);
+			SDL_ANDROID_MainThreadPushMultitouchMotion(pointerId, x, y, force + radius);
 		else
-			SDL_ANDROID_MainThreadPushMultitouchButton(pointerId, action == MOUSE_DOWN ? 1 : 0, x, y, force*radius / 16);
+			SDL_ANDROID_MainThreadPushMultitouchButton(pointerId, action == MOUSE_DOWN ? 1 : 0, x, y, force + radius);
 #endif
 
-		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 0, x);
-		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 1, y);
-		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 2, force);
-		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 3, radius);
 		if( action == MOUSE_DOWN )
-			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_PRESSED);
+			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_PRESSED);
+		SDL_ANDROID_MainThreadPushJoystickBall(0, pointerId, x, y);
+		SDL_ANDROID_MainThreadPushJoystickAxis(0, pointerId+4, force + radius); // Radius is more sensitive usually
 		if( action == MOUSE_UP )
-			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_RELEASED);
+			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_RELEASED);
 	}
 	if( !isMouseUsed && !SDL_ANDROID_isTouchscreenKeyboardUsed )
 	{
@@ -463,14 +467,14 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 		{
 			if( action == MOUSE_DOWN )
 			{
-				relativeMovementX = oldMouseX - x;
-				relativeMovementY = oldMouseY - y;
+				relativeMovementX = currentMouseX - x;
+				relativeMovementY = currentMouseY - y;
 			}
 			x += relativeMovementX;
 			y += relativeMovementY;
 			
-			int diffX = x - oldMouseX;
-			int diffY = y - oldMouseY;
+			int diffX = x - currentMouseX;
+			int diffY = y - currentMouseY;
 			int coeff = relativeMovementSpeed + 2;
 			if( relativeMovementSpeed > 2 )
 				coeff += relativeMovementSpeed - 2;
@@ -486,8 +490,8 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 				}
 				relativeMovementTime = newTime;
 			}
-			diffX -= x - oldMouseX;
-			diffY -= y - oldMouseY;
+			diffX -= x - currentMouseX;
+			diffY -= y - currentMouseY;
 			x += diffX;
 			y += diffY;
 			relativeMovementX += diffX;
@@ -525,7 +529,8 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 			}
 			else
 			{
-				SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_LEFT );
+				if( leftClickMethod != LEFT_CLICK_WITH_KEY )
+					SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_LEFT );
 			}
 
 			SDL_ANDROID_ShowScreenUnderFingerRect.w = SDL_ANDROID_ShowScreenUnderFingerRect.h = 0;
@@ -546,11 +551,11 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 		if( action == MOUSE_DOWN )
 		{
 			if( (moveMouseWithKbX >= 0 || leftClickMethod == LEFT_CLICK_NEAR_CURSOR) &&
-				abs(oldMouseX - x) < SDL_ANDROID_sFakeWindowWidth / 8 && abs(oldMouseY - y) < SDL_ANDROID_sFakeWindowHeight / 8 )
+				abs(currentMouseX - x) < SDL_ANDROID_sFakeWindowWidth / 10 && abs(currentMouseY - y) < SDL_ANDROID_sFakeWindowHeight / 10 )
 			{
 				SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_LEFT );
-				moveMouseWithKbX = oldMouseX;
-				moveMouseWithKbY = oldMouseY;
+				moveMouseWithKbX = currentMouseX;
+				moveMouseWithKbY = currentMouseY;
 				moveMouseWithKbSpeedX = 0;
 				moveMouseWithKbSpeedY = 0;
 				action = MOUSE_MOVE;
@@ -559,7 +564,8 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 			if( leftClickMethod == LEFT_CLICK_NORMAL )
 			{
 				SDL_ANDROID_MainThreadPushMouseMotion(x, y);
-				SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_LEFT );
+				if( !hardwareMouseDetected || currentMouseButtons == 0 )
+					SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_LEFT );
 			}
 			else
 			{
@@ -575,6 +581,8 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 		{
 			if( moveMouseWithKbX >= 0 )
 			{
+				// Mouse lazily follows magnifying glass, not very intuitive for drag&drop
+				/*
 				if( abs(moveMouseWithKbX - x) > SDL_ANDROID_sFakeWindowWidth / 12 )
 					moveMouseWithKbSpeedX += moveMouseWithKbX > x ? -1 : 1;
 				else
@@ -586,9 +594,10 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 
 				moveMouseWithKbX += moveMouseWithKbSpeedX;
 				moveMouseWithKbY += moveMouseWithKbSpeedY;
-
-				if( abs(moveMouseWithKbX - x) > SDL_ANDROID_sFakeWindowWidth / 8 ||
-					abs(moveMouseWithKbY - y) > SDL_ANDROID_sFakeWindowHeight / 8 )
+				*/
+				// Mouse follows touch instantly, when it's out of the snapping distance from mouse cursor
+				if( abs(moveMouseWithKbX - x) >= SDL_ANDROID_sFakeWindowWidth / 10 ||
+					abs(moveMouseWithKbY - y) >= SDL_ANDROID_sFakeWindowHeight / 10 )
 				{
 					moveMouseWithKbX = -1;
 					moveMouseWithKbY = -1;
@@ -699,12 +708,48 @@ void ProcessDeferredMouseTap()
 #define SDL_ANDROID_sFakeWindowWidth window->w
 #define SDL_ANDROID_sFakeWindowHeight window->h
 #endif
-			if( oldMouseX + 1 < SDL_ANDROID_sFakeWindowWidth )
-				SDL_ANDROID_MainThreadPushMouseMotion(oldMouseX + 1, oldMouseY);
+			if( currentMouseX + 1 < SDL_ANDROID_sFakeWindowWidth )
+				SDL_ANDROID_MainThreadPushMouseMotion(currentMouseX + 1, currentMouseY);
 			SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_LEFT );
 		}
-		else if( oldMouseX > 0 ) // Force application to redraw, and call SDL_Flip()
-			SDL_ANDROID_MainThreadPushMouseMotion(oldMouseX - 1, oldMouseY);
+		else if( currentMouseX > 0 ) // Force application to redraw, and call SDL_Flip()
+			SDL_ANDROID_MainThreadPushMouseMotion(currentMouseX - 1, currentMouseY);
+	}
+}
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeTouchpad) ( JNIEnv*  env, jobject thiz, jint x, jint y, jint down, jint multitouch)
+{
+	if( !isMouseUsed )
+		return;
+	if( ! down )
+	{
+		SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_RIGHT );
+		SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_LEFT );
+		moveMouseWithKbX = -1;
+		moveMouseWithKbY = -1;
+		moveMouseWithKbAccelUpdateNeeded = 0;
+	}
+	else
+	{
+		// x and y from 0 to 65535
+		if( moveMouseWithKbX < 0 )
+		{
+			moveMouseWithKbX = currentMouseX;
+			moveMouseWithKbY = currentMouseY;
+		}
+		moveMouseWithKbSpeedX = (x - 32767) / 8192;
+		moveMouseWithKbSpeedY = (y - 32767) / 8192;
+		//moveMouseWithKbX += moveMouseWithKbSpeedX;
+		//moveMouseWithKbY += moveMouseWithKbSpeedY;
+		SDL_ANDROID_MainThreadPushMouseMotion(moveMouseWithKbX, moveMouseWithKbY);
+		moveMouseWithKbAccelUpdateNeeded = 1;
+
+		if( multitouch )
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_RIGHT );
+		else
+		if( abs(x - 32767) < 8192 && abs(y - 32767) < 8192 )
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_LEFT );
 	}
 }
 
@@ -716,9 +761,9 @@ void SDL_ANDROID_WarpMouse(int x, int y)
 	}
 	else
 	{
-		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "SDL_ANDROID_WarpMouse(): %dx%d rel %dx%d old %dx%d", x, y, relativeMovementX, relativeMovementY, oldMouseX, oldMouseY);
-		relativeMovementX -= oldMouseX-x;
-		relativeMovementY -= oldMouseY-y;
+		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "SDL_ANDROID_WarpMouse(): %dx%d rel %dx%d old %dx%d", x, y, relativeMovementX, relativeMovementY, currentMouseX, currentMouseY);
+		relativeMovementX -= currentMouseX-x;
+		relativeMovementY -= currentMouseY-y;
 		SDL_ANDROID_MainThreadPushMouseMotion(x, y);
 	}
 };
@@ -748,7 +793,7 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeKey) ( JNIEnv*  env, jobject thiz, jint
 		return 1;
 	}
 
-	if( TranslateKey(key) == SDLK_NO_REMAP )
+	if( TranslateKey(key) == SDLK_NO_REMAP || TranslateKey(key) == SDLK_UNKNOWN )
 		return 0;
 
 	SDL_ANDROID_MainThreadPushKeyboardKey( action ? SDL_PRESSED : SDL_RELEASED, TranslateKey(key) );
@@ -806,7 +851,6 @@ JAVA_EXPORT_NAME(AccelerometerReader_nativeAccelerometer) ( JNIEnv*  env, jobjec
 	float normal = sqrt(accPosX*accPosX+accPosY*accPosY+accPosZ*accPosZ);
 	if(normal <= 0.0000001f)
 		normal = 0.00001f;
-	
 	
 	updateOrientation (accPosX/normal, accPosY/normal, 0.0f);
 }
@@ -876,22 +920,131 @@ JAVA_EXPORT_NAME(Settings_nativeSetMouseUsed) (JNIEnv* env, jobject thiz,
 }
 
 JNIEXPORT void JNICALL 
-JAVA_EXPORT_NAME(Settings_nativeSetExternalMouseDetected) (JNIEnv* env, jobject thiz)
+JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeHardwareMouseDetected) (JNIEnv* env, jobject thiz, int detected)
 {
 	if( !isMouseUsed )
 		return;
 
-	leftClickMethod = LEFT_CLICK_NORMAL;
-	SDL_ANDROID_ShowScreenUnderFinger = 0;
-	leftClickTimeout = 0;
-	relativeMovement = 0;
-	SDL_ANDROID_ShowMouseCursor = 0;
+	static struct {
+		int leftClickMethod;
+		int ShowScreenUnderFinger;
+		int leftClickTimeout;
+		int relativeMovement;
+		int ShowMouseCursor;
+	} cfg = { 0 };
+
+	if( hardwareMouseDetected != detected )
+	{
+		hardwareMouseDetected = detected;
+		if(detected)
+		{
+			cfg.leftClickMethod = leftClickMethod;
+			cfg.ShowScreenUnderFinger = SDL_ANDROID_ShowScreenUnderFinger;
+			cfg.leftClickTimeout = leftClickTimeout;
+			cfg.relativeMovement = relativeMovement;
+			cfg.ShowMouseCursor = SDL_ANDROID_ShowMouseCursor;
+			
+			leftClickMethod = LEFT_CLICK_NORMAL;
+			SDL_ANDROID_ShowScreenUnderFinger = 0;
+			leftClickTimeout = 0;
+			relativeMovement = 0;
+			SDL_ANDROID_ShowMouseCursor = 0;
+		}
+		else
+		{
+			leftClickMethod = cfg.leftClickMethod;
+			SDL_ANDROID_ShowScreenUnderFinger = cfg.ShowScreenUnderFinger;
+			leftClickTimeout = cfg.leftClickTimeout;
+			relativeMovement = cfg.relativeMovement;
+			SDL_ANDROID_ShowMouseCursor = cfg.ShowMouseCursor;
+		}
+	}
+}
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouseButtonsPressed) (JNIEnv* env, jobject thiz, jint buttonId, jint pressedState)
+{
+	int btn = SDL_BUTTON_LEFT;
+	if( !isMouseUsed )
+		return;
+
+	switch(buttonId)
+	{
+		case MOUSE_HW_BUTTON_LEFT:
+			btn = SDL_BUTTON_LEFT;
+			break;
+		case MOUSE_HW_BUTTON_RIGHT:
+			btn = SDL_BUTTON_RIGHT;
+			break;
+		case MOUSE_HW_BUTTON_MIDDLE:
+			btn = SDL_BUTTON_MIDDLE;
+			break;
+		case MOUSE_HW_BUTTON_BACK:
+			btn = SDL_BUTTON_X1;
+			break;
+		case MOUSE_HW_BUTTON_FORWARD:
+			btn = SDL_BUTTON_X2;
+			break;
+	}
+	SDL_ANDROID_MainThreadPushMouseButton( pressedState ? SDL_PRESSED : SDL_RELEASED, btn );
+}
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouseWheel) (JNIEnv* env, jobject thiz, jint scrollX, jint scrollY)
+{
+#if SDL_VERSION_ATLEAST(1,3,0)
+	SDL_ANDROID_MainThreadPushMouseWheel( scrollX, scrollY );
+#else
+	// TODO: direction might get inverted
+	for( ; scrollX > 0; scrollX-- )
+	{
+		SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, TranslateKey(KEYCODE_DPAD_RIGHT) );
+		SDL_ANDROID_MainThreadPushKeyboardKey( SDL_RELEASED, TranslateKey(KEYCODE_DPAD_RIGHT) );
+	}
+	for( ; scrollX < 0; scrollX++ )
+	{
+		SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, TranslateKey(KEYCODE_DPAD_LEFT) );
+		SDL_ANDROID_MainThreadPushKeyboardKey( SDL_RELEASED, TranslateKey(KEYCODE_DPAD_LEFT) );
+	}
+	for( ; scrollY > 0; scrollY-- )
+	{
+		if(!isMouseUsed)
+		{
+			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, TranslateKey(KEYCODE_DPAD_DOWN) );
+			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_RELEASED, TranslateKey(KEYCODE_DPAD_DOWN) );
+		}
+		else
+		{
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_WHEELDOWN );
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_WHEELDOWN );
+		}
+	}
+	for( ; scrollY < 0; scrollY++ )
+	{
+		if(!isMouseUsed)
+		{
+			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_PRESSED, TranslateKey(KEYCODE_DPAD_UP) );
+			SDL_ANDROID_MainThreadPushKeyboardKey( SDL_RELEASED, TranslateKey(KEYCODE_DPAD_UP) );
+		}
+		else
+		{
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_PRESSED, SDL_BUTTON_WHEELUP );
+			SDL_ANDROID_MainThreadPushMouseButton( SDL_RELEASED, SDL_BUTTON_WHEELUP );
+		}
+	}
+#endif
 }
 
 JNIEXPORT void JNICALL 
 JAVA_EXPORT_NAME(Settings_nativeSetJoystickUsed) (JNIEnv* env, jobject thiz)
 {
 	SDL_ANDROID_isJoystickUsed = 1;
+}
+
+JNIEXPORT void JNICALL 
+JAVA_EXPORT_NAME(Settings_nativeSetAccelerometerUsed) (JNIEnv* env, jobject thiz)
+{
+	SDL_ANDROID_isAccelerometerUsed = 1;
 }
 
 JNIEXPORT void JNICALL 
@@ -933,7 +1086,18 @@ void updateOrientation ( float accX, float accY, float accZ )
 
 	static float midX = 0, midY = 0, midZ = 0;
 	static int pressLeft = 0, pressRight = 0, pressUp = 0, pressDown = 0, pressR = 0, pressL = 0;
+
+	//__android_log_print(ANDROID_LOG_INFO, "libSDL", "updateOrientation(): %f %f %f", accX, accY, accZ);
 	
+	if( SDL_ANDROID_isAccelerometerUsed )
+	{
+		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "updateOrientation(): sending joystick event");
+		SDL_ANDROID_MainThreadPushJoystickAxis(0, 2, (Sint16)(fminf(32767.0f, fmax(-32767.0f, (accX) * 32767.0f))));
+		SDL_ANDROID_MainThreadPushJoystickAxis(0, 3, (Sint16)(fminf(32767.0f, fmax(-32767.0f, -(accY) * 32767.0f))));
+		//SDL_ANDROID_MainThreadPushJoystickAxis(0, 2, (Sint16)(fminf(32767.0f, fmax(-32767.0f, -(accZ) * 32767.0f))));
+		return;
+	}
+
 	if( accelerometerCenterPos == ACCELEROMETER_CENTER_FIXED_START )
 	{
 		accelerometerCenterPos = ACCELEROMETER_CENTER_FIXED_HORIZ;
@@ -942,16 +1106,12 @@ void updateOrientation ( float accX, float accY, float accZ )
 		midZ = accZ;
 	}
 	
-	// midX = 0.0f; // Do not remember old value for phone tilt, it feels weird
-
-	//__android_log_print(ANDROID_LOG_INFO, "libSDL", "updateOrientation(): %f %f %f", accX, accY, accZ);
-	
-	if( SDL_ANDROID_isJoystickUsed ) // TODO: mutex for that stuff?
+	if( SDL_ANDROID_isJoystickUsed )
 	{
 		//__android_log_print(ANDROID_LOG_INFO, "libSDL", "updateOrientation(): sending joystick event");
 		SDL_ANDROID_MainThreadPushJoystickAxis(0, 0, (Sint16)(fminf(32767.0f, fmax(-32767.0f, (accX - midX) * joystickSensitivity))));
 		SDL_ANDROID_MainThreadPushJoystickAxis(0, 1, (Sint16)(fminf(32767.0f, fmax(-32767.0f, -(accY - midY) * joystickSensitivity))));
-		SDL_ANDROID_MainThreadPushJoystickAxis(0, 2, (Sint16)(fminf(32767.0f, fmax(-32767.0f, -(accZ - midZ) * joystickSensitivity))));
+		//SDL_ANDROID_MainThreadPushJoystickAxis(0, 2, (Sint16)(fminf(32767.0f, fmax(-32767.0f, -(accZ - midZ) * joystickSensitivity))));
 
 		if( accelerometerCenterPos == ACCELEROMETER_CENTER_FLOATING )
 		{
@@ -964,10 +1124,8 @@ void updateOrientation ( float accX, float accY, float accZ )
 			if( accZ > midZ + dz*2 )
 				midZ = accZ - dz*2;
 		}
-	}
-
-	if(SDL_ANDROID_isJoystickUsed)
 		return;
+	}
 
 	if( accX < midX - dx )
 	{
@@ -1218,10 +1376,10 @@ void SDL_ANDROID_processAndroidTrackballDampening()
 int SDL_SYS_JoystickInit(void)
 {
 	SDL_numjoysticks = 0;
-	if( SDL_ANDROID_isJoystickUsed )
+	if( SDL_ANDROID_isJoystickUsed || isMultitouchUsed || SDL_ANDROID_isAccelerometerUsed )
 		SDL_numjoysticks = 1;
-	if( isMultitouchUsed )
-		SDL_numjoysticks = MAX_MULTITOUCH_POINTERS+1;
+	//if( isMultitouchUsed )
+	//	SDL_numjoysticks = MAX_MULTITOUCH_POINTERS+1;
 
 	return(SDL_numjoysticks);
 }
@@ -1229,37 +1387,28 @@ int SDL_SYS_JoystickInit(void)
 /* Function to get the device-dependent name of a joystick */
 const char *SDL_SYS_JoystickName(int index)
 {
-	if(index)
-		return("Android multitouch");
-	return("Android accelerometer/orientation sensor");
+	return("Android accelerometer/multitouch sensor");
 }
 
-/* Function to open a joystick for use.
-   The joystick to open is specified by the index field of the joystick.
-   This should fill the nbuttons and naxes fields of the joystick structure.
-   It returns 0, or -1 if there is an error.
- */
 int SDL_SYS_JoystickOpen(SDL_Joystick *joystick)
 {
-	joystick->nbuttons = 0; // Ignored
+	joystick->nbuttons = 0;
 	joystick->nhats = 0;
 	joystick->nballs = 0;
 	if( joystick->index == 0 )
-		joystick->naxes = 3;
-	else
 	{
-		joystick->naxes = 4;
-		joystick->nbuttons = 1;
+		joystick->naxes = 4; // Joystick plus accelerometer
+		if(isMultitouchUsed)
+		{
+			joystick->naxes = 4 + MAX_MULTITOUCH_POINTERS; // Joystick plus accelerometer, plus touch pressure/size
+			joystick->nbuttons = MAX_MULTITOUCH_POINTERS;
+			joystick->nballs = MAX_MULTITOUCH_POINTERS;
+		}
 	}
 	SDL_ANDROID_CurrentJoysticks[joystick->index] = joystick;
 	return(0);
 }
 
-/* Function to update the state of a joystick - called as a device poll.
- * This function shouldn't update the joystick structure directly,
- * but instead should call SDL_PrivateJoystick*() to deliver events
- * and update joystick device state.
- */
 void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
 {
 	return;
@@ -1276,8 +1425,7 @@ void SDL_SYS_JoystickClose(SDL_Joystick *joystick)
 void SDL_SYS_JoystickQuit(void)
 {
 	int i;
-	for(i=0; i<MAX_MULTITOUCH_POINTERS+1; i++)
-		SDL_ANDROID_CurrentJoysticks[i] = NULL;
+	SDL_ANDROID_CurrentJoysticks[0] = NULL;
 	return;
 }
 
@@ -1300,8 +1448,21 @@ extern SDL_Window * ANDROID_CurrentWindow;
 
 #endif
 
+/* We need our own event queue, because Free Heroes 2 game uses
+ * SDL_SetEventFilter(), and it calls SDL_Flip() from inside
+ * it's custom filter function, and SDL_Flip() does not work
+ * when it's not called from the main() thread.
+ * So we, like, push the events into our own queue,
+ * read each event from that queue inside SDL_ANDROID_PumpEvents(),
+ * unlock the mutex, and push the event to SDL queue,
+ * which is then immediately read by SDL from the same thread,
+ * and then SDL invokes event filter function from FHeroes2.
+ * FHeroes2 call SDL_Flip() from inside that event filter function,
+ * and it works, because it is called from the main() thread.
+ */
 extern void SDL_ANDROID_PumpEvents()
 {
+	static int oldMouseButtons = 0;
 	SDL_Event ev;
 	SDL_ANDROID_processAndroidTrackballDampening();
 	SDL_ANDROID_processMoveMouseWithKeyboard();
@@ -1327,7 +1488,7 @@ extern void SDL_ANDROID_PumpEvents()
 		switch( ev.type )
 		{
 			case SDL_MOUSEMOTION:
-				SDL_SendMouseMotion(ANDROID_CurrentWindow, 0, ev.motion.x, ev.motion.y);
+				SDL_SendMouseMotion( ANDROID_CurrentWindow, 0, ev.motion.x, ev.motion.y );
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if( ((oldMouseButtons & SDL_BUTTON(ev.button.button)) != 0) != ev.button.state )
@@ -1348,6 +1509,18 @@ extern void SDL_ANDROID_PumpEvents()
 				if( ev.jbutton.which < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[ev.jbutton.which] )
 					SDL_PrivateJoystickButton( SDL_ANDROID_CurrentJoysticks[ev.jbutton.which], ev.jbutton.button, ev.jbutton.state );
 				break;
+			case SDL_JOYBALLMOTION:
+				if( ev.jball.which < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[ev.jbutton.which] )
+					SDL_PrivateJoystickBall( SDL_ANDROID_CurrentJoysticks[ev.jball.which], ev.jball.ball, ev.jball.xrel, ev.jball.yrel );
+				break;
+#if SDL_VERSION_ATLEAST(1,3,0)
+				//if( ANDROID_CurrentWindow )
+				//	SDL_SendWindowEvent(ANDROID_CurrentWindow, SDL_WINDOWEVENT_MINIMIZED, 0, 0);
+#else
+			case SDL_ACTIVEEVENT:
+				SDL_PrivateAppActive(ev.active.gain, ev.active.state);
+				break;
+#endif
 #if SDL_VERSION_ATLEAST(1,3,0)
 			case SDL_FINGERMOTION:
 				SDL_SendTouchMotion(0, ev.tfinger.fingerId, 0, (float)ev.tfinger.x / (float)window->w, (float)ev.tfinger.y / (float)window->h, ev.tfinger.pressure);
@@ -1357,6 +1530,9 @@ extern void SDL_ANDROID_PumpEvents()
 				break;
 			case SDL_TEXTINPUT:
 				SDL_SendKeyboardText(ev.text.text);
+				break;
+			case SDL_MOUSEWHEEL:
+				SDL_SendMouseWheel( ANDROID_CurrentWindow, ev.wheel.x, ev.wheel.y );
 				break;
 #endif
 		}
@@ -1424,8 +1600,8 @@ extern void SDL_ANDROID_MainThreadPushMouseMotion(int x, int y)
 		ev->motion.x = x;
 		ev->motion.y = y;
 	}
-	oldMouseX = x;
-	oldMouseY = y;
+	currentMouseX = x;
+	currentMouseY = y;
 	
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
@@ -1441,6 +1617,11 @@ extern void SDL_ANDROID_MainThreadPushMouseButton(int pressed, int button)
 	ev->type = SDL_MOUSEBUTTONDOWN;
 	ev->button.state = pressed;
 	ev->button.button = button;
+
+	if(pressed)
+		currentMouseButtons |= SDL_BUTTON(button);
+	else
+		currentMouseButtons &= ~(SDL_BUTTON(button));
 	
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
@@ -1460,8 +1641,8 @@ extern void SDL_ANDROID_MainThreadPushKeyboardKey(int pressed, SDL_scancode key)
 	{
 		if( moveMouseWithKbX < 0 )
 		{
-			moveMouseWithKbX = oldMouseX;
-			moveMouseWithKbY = oldMouseY;
+			moveMouseWithKbX = currentMouseX;
+			moveMouseWithKbY = currentMouseY;
 		}
 
 		if( pressed )
@@ -1555,7 +1736,7 @@ extern void SDL_ANDROID_MainThreadPushJoystickAxis(int joy, int axis, int value)
 	ev->type = SDL_JOYAXISMOTION;
 	ev->jaxis.which = joy;
 	ev->jaxis.axis = axis;
-	ev->jaxis.value = value;
+	ev->jaxis.value = MAX( -32768, MIN( 32767, value ) );
 	
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
@@ -1579,6 +1760,26 @@ extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pr
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
 };
+extern void SDL_ANDROID_MainThreadPushJoystickBall(int joy, int ball, int x, int y)
+{
+	if( ! ( joy < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[joy] ) )
+		return;
+
+	int nextEvent = getNextEventAndLock();
+	if( nextEvent == -1 )
+		return;
+	
+	SDL_Event * ev = &BufferedEvents[BufferedEventsEnd];
+	
+	ev->type = SDL_JOYBALLMOTION;
+	ev->jball.which = joy;
+	ev->jball.ball = ball;
+	ev->jball.xrel = x;
+	ev->jball.yrel = y;
+	
+	BufferedEventsEnd = nextEvent;
+	SDL_mutexV(BufferedEventsMutex);
+}
 extern void SDL_ANDROID_MainThreadPushMultitouchButton(int id, int pressed, int x, int y, int force)
 {
 #if SDL_VERSION_ATLEAST(1,3,0)
@@ -1618,6 +1819,46 @@ extern void SDL_ANDROID_MainThreadPushMultitouchMotion(int id, int x, int y, int
 	SDL_mutexV(BufferedEventsMutex);
 #endif
 };
+
+extern void SDL_ANDROID_MainThreadPushMouseWheel(int x, int y)
+{
+#if SDL_VERSION_ATLEAST(1,3,0)
+	int nextEvent = getNextEventAndLock();
+	if( nextEvent == -1 )
+		return;
+	
+	SDL_Event * ev = &BufferedEvents[BufferedEventsEnd];
+	
+	ev->type = SDL_MOUSEWHEEL;
+	ev->wheel.x = x;
+	ev->wheel.y = y;
+	
+	BufferedEventsEnd = nextEvent;
+	SDL_mutexV(BufferedEventsMutex);
+#endif
+}
+
+extern void SDL_ANDROID_MainThreadPushAppActive(int active)
+{
+#if SDL_VERSION_ATLEAST(1,3,0)
+				//if( ANDROID_CurrentWindow )
+				//	SDL_SendWindowEvent(ANDROID_CurrentWindow, SDL_WINDOWEVENT_MINIMIZED, 0, 0);
+#else
+	int nextEvent = getNextEventAndLock();
+	if( nextEvent == -1 )
+		return;
+	
+	SDL_Event * ev = &BufferedEvents[BufferedEventsEnd];
+	
+	ev->type = SDL_ACTIVEEVENT;
+	ev->active.gain = active;
+	ev->active.state = SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS;
+	
+	BufferedEventsEnd = nextEvent;
+	SDL_mutexV(BufferedEventsMutex);
+#endif
+}
+
 
 enum { DEFERRED_TEXT_COUNT = 256 };
 static struct { int scancode; int unicode; int down; } deferredText[DEFERRED_TEXT_COUNT];
@@ -1698,7 +1939,7 @@ void SDL_ANDROID_DeferredTextInput()
 		
 		BufferedEventsEnd = nextEvent;
 		SDL_mutexV(BufferedEventsMutex);
-		SDL_ANDROID_MainThreadPushMouseMotion(oldMouseX + (oldMouseX % 2 ? -1 : 1), oldMouseY); // Force screen redraw
+		SDL_ANDROID_MainThreadPushMouseMotion(currentMouseX + (currentMouseX % 2 ? -1 : 1), currentMouseY); // Force screen redraw
 	}
 	
 	SDL_mutexV(deferredTextMutex);
@@ -1938,237 +2179,5 @@ int SDL_ANDROID_GetScreenKeyboardRedefinedByUser()
 JNIEXPORT void JNICALL 
 JAVA_EXPORT_NAME(Settings_nativeInitKeymap) ( JNIEnv*  env, jobject thiz )
 {
-  int i;
-  SDLKey * keymap = SDL_android_keymap;
-
-  for (i=0; i<SDL_arraysize(SDL_android_keymap); ++i)
-    SDL_android_keymap[i] = SDL_KEY(UNKNOWN);
-
-  keymap[KEYCODE_UNKNOWN] = SDL_KEY(UNKNOWN);
-
-  keymap[KEYCODE_BACK] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_5));
-
-  keymap[KEYCODE_MENU] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_4));
-
-  keymap[KEYCODE_DPAD_CENTER] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_1));
-  keymap[KEYCODE_SEARCH] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_7));
-
-  keymap[KEYCODE_VOLUME_UP] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_2));
-  keymap[KEYCODE_VOLUME_DOWN] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_3));
-  
-  keymap[KEYCODE_HOME] = SDL_KEY(HOME); // Cannot be used in application
-
-  // On some devices pressing Camera key will generate Camera keyevent, but releasing it will generate Focus keyevent.
-  keymap[KEYCODE_CAMERA] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_6));
-  keymap[KEYCODE_FOCUS] = SDL_KEY(SDL_KEY_VAL(SDL_ANDROID_KEYCODE_6));
-
-  keymap[KEYCODE_CALL] = SDL_KEY(TAB);
-
-  keymap[KEYCODE_0] = SDL_KEY(0);
-  keymap[KEYCODE_1] = SDL_KEY(1);
-  keymap[KEYCODE_2] = SDL_KEY(2);
-  keymap[KEYCODE_3] = SDL_KEY(3);
-  keymap[KEYCODE_4] = SDL_KEY(4);
-  keymap[KEYCODE_5] = SDL_KEY(5);
-  keymap[KEYCODE_6] = SDL_KEY(6);
-  keymap[KEYCODE_7] = SDL_KEY(7);
-  keymap[KEYCODE_8] = SDL_KEY(8);
-  keymap[KEYCODE_9] = SDL_KEY(9);
-  keymap[KEYCODE_STAR] = SDL_KEY(KP_DIVIDE);
-  keymap[KEYCODE_POUND] = SDL_KEY(KP_MULTIPLY);
-
-  keymap[KEYCODE_DPAD_UP] = SDL_KEY(UP);
-  keymap[KEYCODE_DPAD_DOWN] = SDL_KEY(DOWN);
-  keymap[KEYCODE_DPAD_LEFT] = SDL_KEY(LEFT);
-  keymap[KEYCODE_DPAD_RIGHT] = SDL_KEY(RIGHT);
-
-  keymap[KEYCODE_SOFT_LEFT] = SDL_KEY(KP_4);
-  keymap[KEYCODE_SOFT_RIGHT] = SDL_KEY(KP_6);
-  keymap[KEYCODE_ENTER] = SDL_KEY(RETURN); //SDL_KEY(KP_ENTER);
-
-
-  keymap[KEYCODE_CLEAR] = SDL_KEY(BACKSPACE);
-  keymap[KEYCODE_A] = SDL_KEY(A);
-  keymap[KEYCODE_B] = SDL_KEY(B);
-  keymap[KEYCODE_C] = SDL_KEY(C);
-  keymap[KEYCODE_D] = SDL_KEY(D);
-  keymap[KEYCODE_E] = SDL_KEY(E);
-  keymap[KEYCODE_F] = SDL_KEY(F);
-  keymap[KEYCODE_G] = SDL_KEY(G);
-  keymap[KEYCODE_H] = SDL_KEY(H);
-  keymap[KEYCODE_I] = SDL_KEY(I);
-  keymap[KEYCODE_J] = SDL_KEY(J);
-  keymap[KEYCODE_K] = SDL_KEY(K);
-  keymap[KEYCODE_L] = SDL_KEY(L);
-  keymap[KEYCODE_M] = SDL_KEY(M);
-  keymap[KEYCODE_N] = SDL_KEY(N);
-  keymap[KEYCODE_O] = SDL_KEY(O);
-  keymap[KEYCODE_P] = SDL_KEY(P);
-  keymap[KEYCODE_Q] = SDL_KEY(Q);
-  keymap[KEYCODE_R] = SDL_KEY(R);
-  keymap[KEYCODE_S] = SDL_KEY(S);
-  keymap[KEYCODE_T] = SDL_KEY(T);
-  keymap[KEYCODE_U] = SDL_KEY(U);
-  keymap[KEYCODE_V] = SDL_KEY(V);
-  keymap[KEYCODE_W] = SDL_KEY(W);
-  keymap[KEYCODE_X] = SDL_KEY(X);
-  keymap[KEYCODE_Y] = SDL_KEY(Y);
-  keymap[KEYCODE_Z] = SDL_KEY(Z);
-  keymap[KEYCODE_COMMA] = SDL_KEY(COMMA);
-  keymap[KEYCODE_PERIOD] = SDL_KEY(PERIOD);
-  keymap[KEYCODE_TAB] = SDL_KEY(TAB);
-  keymap[KEYCODE_SPACE] = SDL_KEY(SPACE);
-  keymap[KEYCODE_DEL] = SDL_KEY(DELETE);
-  keymap[KEYCODE_GRAVE] = SDL_KEY(GRAVE);
-  keymap[KEYCODE_MINUS] = SDL_KEY(KP_MINUS);
-  keymap[KEYCODE_PLUS] = SDL_KEY(KP_PLUS);
-  keymap[KEYCODE_EQUALS] = SDL_KEY(EQUALS);
-  keymap[KEYCODE_LEFT_BRACKET] = SDL_KEY(LEFTBRACKET);
-  keymap[KEYCODE_RIGHT_BRACKET] = SDL_KEY(RIGHTBRACKET);
-  keymap[KEYCODE_BACKSLASH] = SDL_KEY(BACKSLASH);
-  keymap[KEYCODE_SEMICOLON] = SDL_KEY(SEMICOLON);
-  keymap[KEYCODE_APOSTROPHE] = SDL_KEY(APOSTROPHE);
-  keymap[KEYCODE_SLASH] = SDL_KEY(SLASH);
-  keymap[KEYCODE_AT] = SDL_KEY(KP_PERIOD);
-
-  keymap[KEYCODE_MEDIA_PLAY_PAUSE] = SDL_KEY(KP_2);
-  keymap[KEYCODE_MEDIA_STOP] = SDL_KEY(HELP);
-  keymap[KEYCODE_MEDIA_NEXT] = SDL_KEY(KP_8);
-  keymap[KEYCODE_MEDIA_PREVIOUS] = SDL_KEY(KP_5);
-  keymap[KEYCODE_MEDIA_REWIND] = SDL_KEY(KP_1);
-  keymap[KEYCODE_MEDIA_FAST_FORWARD] = SDL_KEY(KP_3);
-  keymap[KEYCODE_MUTE] = SDL_KEY(KP_0);
-
-  keymap[KEYCODE_SYM] = SDL_KEY(LGUI);
-  keymap[KEYCODE_NUM] = SDL_KEY(NUMLOCKCLEAR);
-
-  keymap[KEYCODE_ALT_LEFT] = SDL_KEY(KP_7);
-  keymap[KEYCODE_ALT_RIGHT] = SDL_KEY(KP_9);
-
-  keymap[KEYCODE_SHIFT_LEFT] = SDL_KEY(F1);
-  keymap[KEYCODE_SHIFT_RIGHT] = SDL_KEY(F2);
-
-  keymap[KEYCODE_EXPLORER] = SDL_KEY(F3);
-  keymap[KEYCODE_ENVELOPE] = SDL_KEY(F4);
-
-  keymap[KEYCODE_HEADSETHOOK] = SDL_KEY(F5);
-  keymap[KEYCODE_NOTIFICATION] = SDL_KEY(F6);
-
-  // Cannot be received by application, OS internal
-  keymap[KEYCODE_ENDCALL] = SDL_KEY(LSHIFT);
-  keymap[KEYCODE_POWER] = SDL_KEY(RALT);
-
-  keymap[KEYCODE_PAGE_UP] = SDL_KEY(PAGEUP);
-  keymap[KEYCODE_PAGE_DOWN] = SDL_KEY(PAGEDOWN);
-  keymap[KEYCODE_PICTSYMBOLS] = SDL_KEY(LSHIFT);
-  keymap[KEYCODE_SWITCH_CHARSET] = SDL_KEY(LSHIFT);
-  keymap[KEYCODE_BUTTON_A] = SDL_KEY(A);
-  keymap[KEYCODE_BUTTON_B] = SDL_KEY(B);
-  keymap[KEYCODE_BUTTON_C] = SDL_KEY(C);
-  keymap[KEYCODE_BUTTON_X] = SDL_KEY(X);
-  keymap[KEYCODE_BUTTON_Y] = SDL_KEY(Y);
-  keymap[KEYCODE_BUTTON_Z] = SDL_KEY(Z);
-  keymap[KEYCODE_BUTTON_L1] = SDL_KEY(LSHIFT);
-  keymap[KEYCODE_BUTTON_R1] = SDL_KEY(RSHIFT);
-  keymap[KEYCODE_BUTTON_L2] = SDL_KEY(LCTRL);
-  keymap[KEYCODE_BUTTON_R2] = SDL_KEY(RCTRL);
-  keymap[KEYCODE_BUTTON_THUMBL] = SDL_KEY(LALT);
-  keymap[KEYCODE_BUTTON_THUMBR] = SDL_KEY(RALT);
-  keymap[KEYCODE_BUTTON_START] = SDL_KEY(RETURN);
-  keymap[KEYCODE_BUTTON_SELECT] = SDL_KEY(ESCAPE);
-  keymap[KEYCODE_BUTTON_MODE] = SDL_KEY(SPACE);
-  keymap[KEYCODE_ESCAPE] = SDL_KEY(ESCAPE);
-  keymap[KEYCODE_FORWARD_DEL] = SDL_KEY(DELETE);
-  keymap[KEYCODE_CTRL_LEFT] = SDL_KEY(LEFT);
-  keymap[KEYCODE_CTRL_RIGHT] = SDL_KEY(RIGHT);
-  keymap[KEYCODE_CAPS_LOCK] = SDL_KEY(CAPSLOCK);
-  keymap[KEYCODE_SCROLL_LOCK] = SDL_KEY(SCROLLLOCK);
-  keymap[KEYCODE_META_LEFT] = SDL_KEY(LEFT);
-  keymap[KEYCODE_META_RIGHT] = SDL_KEY(RIGHT);
-  keymap[KEYCODE_FUNCTION] = SDL_KEY(RGUI);
-  keymap[KEYCODE_SYSRQ] = SDL_KEY(SYSREQ);
-  keymap[KEYCODE_BREAK] = SDL_KEY(PAUSE);
-  keymap[KEYCODE_MOVE_HOME] = SDL_KEY(HOME);
-  keymap[KEYCODE_MOVE_END] = SDL_KEY(END);
-  keymap[KEYCODE_INSERT] = SDL_KEY(INSERT);
-  keymap[KEYCODE_FORWARD] = SDL_KEY(RIGHT);
-  keymap[KEYCODE_MEDIA_PLAY] = SDL_KEY(F1);
-  keymap[KEYCODE_MEDIA_PAUSE] = SDL_KEY(F2);
-  keymap[KEYCODE_MEDIA_CLOSE] = SDL_KEY(F3);
-  keymap[KEYCODE_MEDIA_EJECT] = SDL_KEY(F4);
-  keymap[KEYCODE_MEDIA_RECORD] = SDL_KEY(F5);
-  keymap[KEYCODE_F1] = SDL_KEY(F1);
-  keymap[KEYCODE_F2] = SDL_KEY(F2);
-  keymap[KEYCODE_F3] = SDL_KEY(F3);
-  keymap[KEYCODE_F4] = SDL_KEY(F4);
-  keymap[KEYCODE_F5] = SDL_KEY(F5);
-  keymap[KEYCODE_F6] = SDL_KEY(F6);
-  keymap[KEYCODE_F7] = SDL_KEY(F7);
-  keymap[KEYCODE_F8] = SDL_KEY(F8);
-  keymap[KEYCODE_F9] = SDL_KEY(F9);
-  keymap[KEYCODE_F10] = SDL_KEY(F10);
-  keymap[KEYCODE_F11] = SDL_KEY(F11);
-  keymap[KEYCODE_F12] = SDL_KEY(F12);
-  keymap[KEYCODE_NUM_LOCK] = SDL_KEY(NUMLOCKCLEAR);
-  keymap[KEYCODE_NUMPAD_0] = SDL_KEY(KP_0);
-  keymap[KEYCODE_NUMPAD_1] = SDL_KEY(KP_1);
-  keymap[KEYCODE_NUMPAD_2] = SDL_KEY(KP_2);
-  keymap[KEYCODE_NUMPAD_3] = SDL_KEY(KP_3);
-  keymap[KEYCODE_NUMPAD_4] = SDL_KEY(KP_4);
-  keymap[KEYCODE_NUMPAD_5] = SDL_KEY(KP_5);
-  keymap[KEYCODE_NUMPAD_6] = SDL_KEY(KP_6);
-  keymap[KEYCODE_NUMPAD_7] = SDL_KEY(KP_7);
-  keymap[KEYCODE_NUMPAD_8] = SDL_KEY(KP_8);
-  keymap[KEYCODE_NUMPAD_9] = SDL_KEY(KP_9);
-  keymap[KEYCODE_NUMPAD_DIVIDE] = SDL_KEY(KP_DIVIDE);
-  keymap[KEYCODE_NUMPAD_MULTIPLY] = SDL_KEY(KP_MULTIPLY);
-  keymap[KEYCODE_NUMPAD_SUBTRACT] = SDL_KEY(KP_MINUS);
-  keymap[KEYCODE_NUMPAD_ADD] = SDL_KEY(KP_PLUS);
-  keymap[KEYCODE_NUMPAD_DOT] = SDL_KEY(KP_PERIOD);
-  keymap[KEYCODE_NUMPAD_COMMA] = SDL_KEY(KP_PERIOD);
-  keymap[KEYCODE_NUMPAD_ENTER] = SDL_KEY(KP_ENTER);
-  keymap[KEYCODE_NUMPAD_EQUALS] = SDL_KEY(KP_EQUALS);
-  keymap[KEYCODE_NUMPAD_LEFT_PAREN] = SDL_KEY(KP_DIVIDE);
-  keymap[KEYCODE_NUMPAD_RIGHT_PAREN] = SDL_KEY(KP_MULTIPLY);
-  keymap[KEYCODE_VOLUME_MUTE] = SDL_KEY(F13);
-  keymap[KEYCODE_INFO] = SDL_KEY(F14);
-  keymap[KEYCODE_CHANNEL_UP] = SDL_KEY(UP);
-  keymap[KEYCODE_CHANNEL_DOWN] = SDL_KEY(DOWN);
-  keymap[KEYCODE_ZOOM_IN] = SDL_KEY(PAGEUP);
-  keymap[KEYCODE_ZOOM_OUT] = SDL_KEY(PAGEDOWN);
-  keymap[KEYCODE_TV] = SDL_KEY(F15);
-  keymap[KEYCODE_WINDOW] = SDL_KEY(F1);
-  keymap[KEYCODE_GUIDE] = SDL_KEY(F2);
-  keymap[KEYCODE_DVR] = SDL_KEY(F3);
-  keymap[KEYCODE_BOOKMARK] = SDL_KEY(F4);
-  keymap[KEYCODE_CAPTIONS] = SDL_KEY(F5);
-  keymap[KEYCODE_SETTINGS] = SDL_KEY(F6);
-  keymap[KEYCODE_TV_POWER] = SDL_KEY(F7);
-  keymap[KEYCODE_TV_INPUT] = SDL_KEY(F8);
-  keymap[KEYCODE_STB_POWER] = SDL_KEY(F9);
-  keymap[KEYCODE_STB_INPUT] = SDL_KEY(F10);
-  keymap[KEYCODE_AVR_POWER] = SDL_KEY(F11);
-  keymap[KEYCODE_AVR_INPUT] = SDL_KEY(F12);
-  keymap[KEYCODE_PROG_RED] = SDL_KEY(F13);
-  keymap[KEYCODE_PROG_GREEN] = SDL_KEY(F14);
-  keymap[KEYCODE_PROG_YELLOW] = SDL_KEY(F15);
-  keymap[KEYCODE_PROG_BLUE] = SDL_KEY(F1);
-  keymap[KEYCODE_APP_SWITCH] = SDL_KEY(F2);
-  keymap[KEYCODE_BUTTON_1] = SDL_KEY(A);
-  keymap[KEYCODE_BUTTON_2] = SDL_KEY(B);
-  keymap[KEYCODE_BUTTON_3] = SDL_KEY(C);
-  keymap[KEYCODE_BUTTON_4] = SDL_KEY(D);
-  keymap[KEYCODE_BUTTON_5] = SDL_KEY(E);
-  keymap[KEYCODE_BUTTON_6] = SDL_KEY(F);
-  keymap[KEYCODE_BUTTON_7] = SDL_KEY(G);
-  keymap[KEYCODE_BUTTON_8] = SDL_KEY(H);
-  keymap[KEYCODE_BUTTON_9] = SDL_KEY(I);
-  keymap[KEYCODE_BUTTON_10] = SDL_KEY(J);
-  keymap[KEYCODE_BUTTON_11] = SDL_KEY(K);
-  keymap[KEYCODE_BUTTON_12] = SDL_KEY(L);
-  keymap[KEYCODE_BUTTON_13] = SDL_KEY(M);
-  keymap[KEYCODE_BUTTON_14] = SDL_KEY(N);
-  keymap[KEYCODE_BUTTON_15] = SDL_KEY(O);
-  keymap[KEYCODE_BUTTON_16] = SDL_KEY(P);
-
+	SDL_android_init_keymap(SDL_android_keymap);
 }

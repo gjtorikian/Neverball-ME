@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -26,7 +26,8 @@ import android.content.Context;
 import java.util.Vector;
 import android.view.KeyEvent;
 
-class Globals {
+class Globals
+{
 	// These config options are modified by ChangeAppsettings.sh script - see the detailed descriptions there
 	public static String ApplicationName = "CommanderGenius";
 	public static String AppLibraries[] = { "sdl-1.2", };
@@ -37,7 +38,9 @@ class Globals {
 	public static boolean NeedDepthBuffer = false;
 	public static boolean NeedStencilBuffer = false;
 	public static boolean NeedGles2 = false;
-	public static boolean CompatibilityHacks = false;
+	public static boolean CompatibilityHacksVideo = false;
+	public static boolean CompatibilityHacksStaticInit = false;
+	public static boolean CompatibilityHacksTextInputEmulatesHwKeyboard = false;
 	public static boolean HorizontalOrientation = true;
 	public static boolean InhibitSuspend = false;
 	public static String ReadmeText = "^You may press \"Home\" now - the data will be downloaded in background".replace("^","\n");
@@ -49,15 +52,19 @@ class Globals {
 	public static boolean AppNeedsArrowKeys = true;
 	public static boolean AppNeedsTextInput = true;
 	public static boolean AppUsesJoystick = false;
-	public static boolean AppHandlesJoystickSensitivity = false;
+	public static boolean AppUsesAccelerometer = false;
 	public static boolean AppUsesMultitouch = false;
 	public static boolean NonBlockingSwapBuffers = false;
 	public static boolean ResetSdlConfigForThisVersion = false;
+	public static String DeleteFilesOnUpgrade = "";
 	public static int AppTouchscreenKeyboardKeysAmount = 4;
 	public static int AppTouchscreenKeyboardKeysAmountAutoFire = 1;
 	public static int StartupMenuButtonTimeout = 3000;
 	public static Settings.Menu HiddenMenuOptions [] = {};
 	public static Settings.Menu FirstStartMenuOptions [] = { (AppUsesMouse && ! ForceRelativeMouseMode ? new Settings.DisplaySizeConfig(true) : new Settings.DummyMenu()), new Settings.OptionalDownloadConfig(true) };
+	public static String AdmobPublisherId = "";
+	public static String AdmobTestDeviceId = "";
+	public static String AdmobBannerSize = "";
 
 	// Phone-specific config, modified by user in "Change phone config" startup dialog, TODO: move this to settings
 	public static boolean DownloadToSdcard = true;
@@ -65,7 +72,7 @@ class Globals {
 	public static boolean PhoneHasArrowKeys = false;
 	public static boolean UseAccelerometerAsArrowKeys = false;
 	public static boolean UseTouchscreenKeyboard = true;
-	public static int TouchscreenKeyboardSize = 0;
+	public static int TouchscreenKeyboardSize = 1;
 	public static int TouchscreenKeyboardDrawSize = 1;
 	public static int TouchscreenKeyboardTheme = 2;
 	public static int TouchscreenKeyboardTransparency = 2;
@@ -100,7 +107,7 @@ class Globals {
 	public static int MultitouchGestureSensitivity = 1;
 	public static int TouchscreenCalibration[] = new int[4];
 	public static String DataDir = new String("");
-	public static boolean SmoothVideo = false;
+	public static boolean VideoLinearFilter = true;
 	public static boolean MultiThreadedVideo = false;
 	public static boolean BrokenLibCMessageShown = false;
 }

@@ -40,8 +40,9 @@ extern int SDL_ANDROID_TouchscreenCalibrationWidth;
 extern int SDL_ANDROID_TouchscreenCalibrationHeight;
 extern int SDL_ANDROID_TouchscreenCalibrationX;
 extern int SDL_ANDROID_TouchscreenCalibrationY;
-extern int SDL_ANDROID_SmoothVideo;
+extern int SDL_ANDROID_VideoLinearFilter;
 extern int SDL_ANDROID_VideoMultithreaded;
+extern int SDL_ANDROID_VideoForceSoftwareMode;
 extern int SDL_ANDROID_CompatibilityHacks;
 extern int SDL_ANDROID_ShowMouseCursor;
 extern int SDL_ANDROID_UseGles2;
@@ -67,6 +68,7 @@ extern void SDL_ANDROID_ProcessDeferredEvents();
 extern void SDL_ANDROID_WarpMouse(int x, int y);
 extern void SDL_ANDROID_DrawMouseCursor(int x, int y, int size, int alpha);
 extern void SDL_ANDROID_DrawMouseCursorIfNeeded();
+extern void SDL_ANDROID_CallJavaTogglePlainAndroidSoftKeyboardInput();
 
 
 #if SDL_VERSION_ATLEAST(1,3,0)

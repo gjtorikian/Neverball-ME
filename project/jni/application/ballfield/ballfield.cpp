@@ -9,8 +9,6 @@
  * software, or work derived from it, under other terms.
  */
 
-#include <sstream>
-#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -19,12 +17,16 @@
 #include "SDL.h"
 #include "SDL_image.h"
 
+#define fprintf(X, ...) __android_log_print(ANDROID_LOG_INFO, "Ballfield", __VA_ARGS__)
+#define printf(...) __android_log_print(ANDROID_LOG_INFO, "Ballfield", __VA_ARGS__)
 
 /*----------------------------------------------------------
 	Definitions...
 ----------------------------------------------------------*/
-#define	SCREEN_W	320
-#define	SCREEN_H	240
+
+#define	SCREEN_W	640
+#define	SCREEN_H	480
+
 
 #define	BALLS	300
 
@@ -405,17 +407,9 @@ void tiled_back(SDL_Surface *back, SDL_Surface *screen, int xo, int yo)
 	SDL_BlitSurface(back, NULL, screen, &r);
 }
 
-
-
 /*----------------------------------------------------------
 	main()
 ----------------------------------------------------------*/
-
-extern "C" void unaligned_test(unsigned * data, unsigned * target);
-extern "C" unsigned val0, val1, val2, val3, val4;
-
-unsigned char data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-//unsigned val0 = 0x12345678, val1 = 0x23456789, val2 = 0x34567890, val3 = 0x45678901, val4 = 0x56789012;
 
 int main(int argc, char* argv[])
 {
@@ -425,7 +419,7 @@ int main(int argc, char* argv[])
 	SDL_Surface	*back, *logo, *font, *font_hex;
 	SDL_Event	event;
 	int		bpp = 16,
-			flags = 0,
+			flags = SDL_HWSURFACE,
 			alpha = 1;
 	int		x_offs = 0, y_offs = 0;
 	long		tick,
@@ -438,6 +432,13 @@ int main(int argc, char* argv[])
 	int		fps_count = 0;
 	int		fps_start = 0;
 	float		x_speed, y_speed, z_speed;
+	enum { MAX_POINTERS = 16 };
+	// some random colors
+	int colors[MAX_POINTERS] = { 0xaaaaaa, 0xffffff, 0x888888, 0xcccccc, 0x666666, 0x999999, 0xdddddd, 0xeeeeee, 0xaaaaaa, 0xffffff, 0x888888, 0xcccccc, 0x666666, 0x999999, 0xdddddd, 0xeeeeee };
+	struct TouchPointer_t { int x; int y; int pressure; int pressed; } touchPointers[MAX_POINTERS];
+	int accel[2], screenjoy[2];
+	SDL_Surface	*mouse[4];
+
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK);
 
@@ -524,15 +525,27 @@ int main(int argc, char* argv[])
 	font_hex = SDL_DisplayFormat(temp_image);
 	SDL_FreeSurface(temp_image);
 
+	for(i = 0; i < 4; i++)
+	{
+		char name[32];
+		sprintf(name, "mouse%d.png", i);
+		temp_image = IMG_Load(name);
+		if(!temp_image)
+		{
+			fprintf(stderr, "Could not load %s!\n", name);
+			exit(-1);
+		}
+		//mouse[i] = SDL_DisplayFormat(temp_image);
+		//SDL_FreeSurface(temp_image);
+		mouse[i] = temp_image; // Keep alpha
+	}
+
 	last_avg_tick = last_tick = SDL_GetTicks();
 	
-	enum { MAX_POINTERS = 16, PTR_PRESSED = 4 };
-	int touchPointers[MAX_POINTERS][5];
-	
 	memset(touchPointers, 0, sizeof(touchPointers));
-	SDL_Joystick * joysticks[MAX_POINTERS+1];
-	for(i=0; i<MAX_POINTERS; i++)
-		joysticks[i] = SDL_JoystickOpen(i);
+	memset(accel, 0, sizeof(accel));
+	memset(screenjoy, 0, sizeof(screenjoy));
+	SDL_Joystick * joystick = SDL_JoystickOpen(0);
 
 	while(1)
 	{
@@ -558,72 +571,60 @@ int main(int argc, char* argv[])
 		SDL_BlitSurface(logo, NULL, screen, &r);
 
 		/* FPS counter */
-		if(tick > fps_start + 500)
+		if(tick > fps_start + 1000)
 		{
 			fps = (float)fps_count * 1000.0 / (tick - fps_start);
 			fps_count = 0;
 			fps_start = tick;
-
-			// This wonderful unaligned memory access scenario still fails on my HTC Evo and ADP1 devices, and even on the Beagleboard.
-			// I mean - the test fails, unaligned access works
-
-			// UNALIGNED MEMORY ACCESS HERE! However all the devices that I have won't report it and won't send a signal or write to the /proc/kmsg,
-			// despite the /proc/cpu/alignment flag set.
-/*
-			unsigned * ptr = (unsigned *)(data);
-			unaligned_test(ptr, &val0);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val1);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val2);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val3);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val4);
-*/
 		}
-/*
+
 		print_num(screen, font, screen->w-37, screen->h-12, fps);
-		print_num_hex(screen, font_hex, 0, 40, val0);
-		print_num_hex(screen, font_hex, 0, 60, val1);
-		print_num_hex(screen, font_hex, 0, 80, val2);
-		print_num_hex(screen, font_hex, 0, 100, val3);
-		print_num_hex(screen, font_hex, 0, 120, val4);
-		print_num_hex(screen, font_hex, 0, 180, 0x12345678);
-*/
 		++fps_count;
 
 		for(i=0; i<MAX_POINTERS; i++)
 		{
-			if( !touchPointers[i][PTR_PRESSED] )
+			if( !touchPointers[i].pressed )
 				continue;
-			r.x = touchPointers[i][0];
-			r.y = touchPointers[i][1];
-			r.w = 80 + touchPointers[i][2] / 10; // Pressure
-			r.h = 80 + touchPointers[i][3] / 10; // Touch point size
+			r.x = touchPointers[i].x;
+			r.y = touchPointers[i].y;
+			r.w = 50 + touchPointers[i].pressure / 5;
+			r.h = 50 + touchPointers[i].pressure / 5;
 			r.x -= r.w/2;
 			r.y -= r.h/2;
-			SDL_FillRect(screen, &r, 0xaaaaaa);
-			print_num(screen, font, r.x, r.y, i+1);
+			SDL_FillRect(screen, &r, colors[i]);
 		}
-		int mx, my;
-		int b = SDL_GetMouseState(&mx, &my);
-		Uint32 color = 0xff;
-		if( b )
-		{
-			color = 0;
-			if( b & SDL_BUTTON_LEFT )
-				color |= 0xff00;
-			if( b & SDL_BUTTON_RIGHT )
-				color |= 0xff0000;
-		}
-		r.x = mx;
-		r.y = my;
-		r.w = 30;
-		r.h = 30;
+		r.x = SCREEN_W/2 + accel[0] * SCREEN_H / 65536;
+		r.y = SCREEN_H/2 + accel[1] * SCREEN_H / 65536;
+		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Accel: %d %d screen %d %d", accel[0], accel[1], r.x, r.y);
+		r.w = 10;
+		r.h = 10;
 		r.x -= r.w/2;
 		r.y -= r.h/2;
-		SDL_FillRect(screen, &r, color);
+		SDL_FillRect(screen, &r, 0xffffff);
+		r.x = SCREEN_W/2 + screenjoy[0] * SCREEN_H / 65536;
+		r.y = SCREEN_H/2 + screenjoy[1] * SCREEN_H / 65536;
+		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Screen joystick: %d %d screen %d %d", screenjoy[0], screenjoy[1], r.x, r.y);
+		r.w = 10;
+		r.h = 10;
+		r.x -= r.w/2;
+		r.y -= r.h/2;
+		SDL_FillRect(screen, &r, 0x000000);
+
+		int mx, my;
+		int b = SDL_GetMouseState(&mx, &my);
+		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Mouse buttons: %d", b);
+		int cursorIdx = 0;
+		if( b & SDL_BUTTON_LMASK )
+			cursorIdx |= 1;
+		if( b & SDL_BUTTON_RMASK )
+			cursorIdx |= 2;
+		r.x = mx;
+		r.y = my;
+		r.w = mouse[cursorIdx]->w;
+		r.h = mouse[cursorIdx]->h;
+		r.x -= r.w/2;
+		r.y -= r.h/2;
+		SDL_BlitSurface(mouse[cursorIdx], NULL, screen, &r);
 
 		SDL_Flip(SDL_GetVideoSurface());
 		SDL_Event evt;
@@ -631,49 +632,43 @@ int main(int argc, char* argv[])
 		{
 			if(evt.type == SDL_KEYUP || evt.type == SDL_KEYDOWN)
 			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL key event: evt %s state %s key %d scancode %d mod %d unicode %d", evt.type == SDL_KEYUP ? "UP  " : "DOWN" , evt.key.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.key.keysym.sym, (int)evt.key.keysym.scancode, (int)evt.key.keysym.mod, (int)evt.key.keysym.unicode);
 				if(evt.key.keysym.sym == SDLK_ESCAPE)
 					return 0;
-				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL key event: evt %s state %s key %d scancode %d mod %d unicode %d", evt.type == SDL_KEYUP ? "UP  " : "DOWN" , evt.key.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.key.keysym.sym, (int)evt.key.keysym.scancode, (int)evt.key.keysym.mod, (int)evt.key.keysym.unicode);
+			}
+			if(evt.type == SDL_MOUSEBUTTONUP || evt.type == SDL_MOUSEBUTTONDOWN)
+			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL mouse button event: evt %s state %s button %d coords %d:%d", evt.type == SDL_MOUSEBUTTONUP ? "UP  " : "DOWN" , evt.button.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.button.button, (int)evt.button.x, (int)evt.button.y);
+				if(evt.key.keysym.sym == SDLK_ESCAPE)
+					return 0;
 			}
 			if(evt.type == SDL_VIDEORESIZE)
 				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL resize event: %d x %d", evt.resize.w, evt.resize.h);
 			if(evt.type == SDL_ACTIVEEVENT)
 				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "======= SDL active event: gain %d state %d", evt.active.gain, evt.active.state);
-			/*
-			if( evt.type == SDL_ACTIVEEVENT && evt.active.gain == 0 && evt.active.state & SDL_APPACTIVE )
-			{
-				// We've lost GL context, we are not allowed to do any GFX output here, or app will crash!
-				while( 1 )
-				{
-					SDL_PollEvent(&evt);
-					if( evt.type == SDL_ACTIVEEVENT && evt.active.gain && evt.active.state & SDL_APPACTIVE )
-					{
-						__android_log_print(ANDROID_LOG_INFO, "Ballfield", "======= SDL active event: gain %d state %d", evt.active.gain, evt.active.state);
-						SDL_Flip(SDL_GetVideoSurface()); // One SDL_Flip() call is required here to restore OpenGL context
-						// Re-load all textures, matrixes and all other GL states if we're in SDL+OpenGL mode
-						// Re-load all images to SDL_Texture if we're using it
-						// Now we can draw
-						break;
-					}
-					// Process network stuff, maybe play some sounds using SDL_ANDROID_PauseAudioPlayback() / SDL_ANDROID_ResumeAudioPlayback()
-					SDL_Delay(300);
-					__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Waiting");
-				}
-			}
-			*/
+			// Android-specific events - accelerometer, multitoush, and on-screen joystick
 			if( evt.type == SDL_JOYAXISMOTION )
 			{
-				if( evt.jaxis.which == 0 ) // 0 = The accelerometer
-					continue;
-				int joyid = evt.jaxis.which - 1;
-				touchPointers[joyid][evt.jaxis.axis] = evt.jaxis.value; // Axis 0 and 1 are coordinates, 2 and 3 are pressure and touch point radius
+				if(evt.jaxis.axis < 4)
+				{
+					if(evt.jaxis.axis < 2)
+						screenjoy[evt.jaxis.axis] = evt.jaxis.value;
+					else
+						accel[evt.jaxis.axis - 2] = evt.jaxis.value;
+				}
+				else
+				{
+					touchPointers[evt.jaxis.axis - 4].pressure = evt.jaxis.value;
+				}
 			}
 			if( evt.type == SDL_JOYBUTTONDOWN || evt.type == SDL_JOYBUTTONUP )
 			{
-				if( evt.jbutton.which == 0 ) // 0 = The accelerometer
-					continue;
-				int joyid = evt.jbutton.which - 1;
-				touchPointers[joyid][PTR_PRESSED] = (evt.jbutton.state == SDL_PRESSED);
+				touchPointers[evt.jbutton.button].pressed = (evt.jbutton.state == SDL_PRESSED);
+			}
+			if( evt.type == SDL_JOYBALLMOTION )
+			{
+				touchPointers[evt.jball.ball].x = evt.jball.xrel;
+				touchPointers[evt.jball.ball].y = evt.jball.yrel;
 			}
 		}
 
@@ -693,8 +688,5 @@ int main(int argc, char* argv[])
 	SDL_FreeSurface(back);
 	SDL_FreeSurface(logo);
 	SDL_FreeSurface(font);
-	std::ostringstream os;
-	os << "lalala" << std::endl << "more text" << std::endl;
-	std::cout << os.str() << std::endl << "text text" << std::endl;
-	exit(0);
+	return 0;
 }

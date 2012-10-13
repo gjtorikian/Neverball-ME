@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -37,13 +37,13 @@ import android.hardware.SensorEvent;
 import android.widget.TextView;
 
 
-class AccelerometerReader implements SensorEventListener {
+class AccelerometerReader implements SensorEventListener
+{
 
 	private SensorManager _manager = null;
 
 	public AccelerometerReader(Activity context)
 	{
-		System.out.println("libSDL: accelerometer start required: " + String.valueOf(Globals.UseAccelerometerAsArrowKeys));
 		_manager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 		start();
 	}
@@ -52,14 +52,13 @@ class AccelerometerReader implements SensorEventListener {
 	{
 		if( _manager != null )
 		{
-			System.out.println("libSDL: stopping accelerometer");
 			_manager.unregisterListener(this);
 		}
 	}
 
 	public synchronized void start()
 	{
-		if( Globals.UseAccelerometerAsArrowKeys )
+		if( Globals.UseAccelerometerAsArrowKeys || Globals.AppUsesAccelerometer )
 		{
 			if( _manager != null )
 			{
@@ -96,5 +95,3 @@ class AccelerometerReader implements SensorEventListener {
 	private native void nativeAccelerometer(float accX, float accY, float accZ);
 	private native void nativeOrientation(float accX, float accY, float accZ);
 }
-
-

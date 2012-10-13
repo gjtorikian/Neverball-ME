@@ -38,7 +38,7 @@
 #include "../../events/SDL_mouse_c.h"
 #include "SDL_keycode.h"
 #include "SDL_scancode.h"
-#include "SDL_compat.h"
+//#include "SDL_compat.h"
 #else
 #include "SDL_keysym.h"
 #include "../../events/SDL_events_c.h"
@@ -61,6 +61,9 @@
 
 #define SDL_KEY2(X) SDL_SCANCODE_ ## X
 #define SDL_KEY(X) SDL_KEY2(X)
+typedef SDL_Scancode SDL_scancode;
+typedef SDL_Keycode SDLKey;
+typedef SDL_Keysym SDL_keysym;
 
 #else
 
@@ -131,10 +134,10 @@ extern int SDL_ANDROID_isTouchscreenKeyboardUsed;
 #define SDL_ANDROID_KEYCODE_1 END
 #endif
 #ifndef SDL_ANDROID_KEYCODE_2
-#define SDL_ANDROID_KEYCODE_2 PAGEUP
+#define SDL_ANDROID_KEYCODE_2 NO_REMAP
 #endif
 #ifndef SDL_ANDROID_KEYCODE_3
-#define SDL_ANDROID_KEYCODE_3 PAGEDOWN
+#define SDL_ANDROID_KEYCODE_3 NO_REMAP
 #endif
 #ifndef SDL_ANDROID_KEYCODE_4
 #define SDL_ANDROID_KEYCODE_4 LCTRL
@@ -163,10 +166,10 @@ extern int SDL_ANDROID_isTouchscreenKeyboardUsed;
 #define SDL_ANDROID_SCREENKB_KEYCODE_1 SDL_ANDROID_KEYCODE_1
 #endif
 #ifndef SDL_ANDROID_SCREENKB_KEYCODE_2
-#define SDL_ANDROID_SCREENKB_KEYCODE_2 SDL_ANDROID_KEYCODE_2
+#define SDL_ANDROID_SCREENKB_KEYCODE_2 PAGEUP
 #endif
 #ifndef SDL_ANDROID_SCREENKB_KEYCODE_3
-#define SDL_ANDROID_SCREENKB_KEYCODE_3 SDL_ANDROID_KEYCODE_3
+#define SDL_ANDROID_SCREENKB_KEYCODE_3 PAGEDOWN
 #endif
 #ifndef SDL_ANDROID_SCREENKB_KEYCODE_4
 #define SDL_ANDROID_SCREENKB_KEYCODE_4 SDL_ANDROID_KEYCODE_6
@@ -191,10 +194,13 @@ extern int SDL_ANDROID_isTouchscreenKeyboardUsed;
 extern void SDL_ANDROID_MainThreadPushMouseMotion(int x, int y);
 extern void SDL_ANDROID_MainThreadPushMouseButton(int pressed, int button);
 extern void SDL_ANDROID_MainThreadPushKeyboardKey(int pressed, SDL_scancode key);
-extern void SDL_ANDROID_MainThreadPushMultitouchButton(int id, int pressed, int x, int y, int force);
-extern void SDL_ANDROID_MainThreadPushMultitouchMotion(int id, int x, int y, int force);
+extern void SDL_ANDROID_MainThreadPushMultitouchButton(int id, int pressed, int x, int y, int force); // SDL 1.3 only
+extern void SDL_ANDROID_MainThreadPushMultitouchMotion(int id, int x, int y, int force); // SDL 1.3 only
 extern void SDL_ANDROID_MainThreadPushJoystickAxis(int joy, int axis, int value);
 extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pressed);
+extern void SDL_ANDROID_MainThreadPushJoystickBall(int joy, int ball, int x, int y);
 extern void SDL_ANDROID_MainThreadPushText( int ascii, int unicode );
-
+extern void SDL_android_init_keymap(SDLKey *SDL_android_keymap);
+extern void SDL_ANDROID_MainThreadPushMouseWheel( int x, int y ); // SDL 1.3 only
+extern void SDL_ANDROID_MainThreadPushAppActive(int active);
 #endif

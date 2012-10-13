@@ -16,6 +16,7 @@ fi
 
 NDK=`which ndk-build`
 NDK=`dirname $NDK`
+NDK=`readlink -f $NDK`
 
 #echo NDK $NDK
 GCCPREFIX=arm-linux-androideabi
@@ -37,6 +38,7 @@ echo $APP_MODULES | xargs -n 1 echo | while read LIB ; do
 done
 )
 
+
 MISSING_INCLUDE=
 MISSING_LIB=
 
@@ -50,7 +52,6 @@ MISSING_LIB=
 #fi
 
 CFLAGS="\
--fexceptions -frtti \
 -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -Wno-psabi \
 -march=armv5te -mtune=xscale -msoft-float -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 \
 -isystem$NDK/platforms/$PLATFORMVER/arch-arm/usr/include -Wa,--noexecstack \
@@ -60,7 +61,7 @@ CFLAGS="\
 -isystem$NDK/sources/cxx-stl/gnu-libstdc++/libs/armeabi/include \
 -isystem$LOCAL_PATH/../sdl-1.2/include \
 `echo $APP_MODULES | sed \"s@\([-a-zA-Z0-9_.]\+\)@-isystem$LOCAL_PATH/../\1/include@g\"` \
-$MISSING_INCLUDE"
+$MISSING_INCLUDE $CFLAGS"
 
 SHARED="-shared -Wl,-soname,libapplication.so"
 if [ -n "$BUILD_EXECUTABLE" ]; then
@@ -72,7 +73,7 @@ fi
 
 
 LDFLAGS="\
--fexceptions -frtti $SHARED \
+$SHARED \
 --sysroot=$NDK/platforms/$PLATFORMVER/arch-arm \
 `echo $APP_SHARED_LIBS | sed \"s@\([-a-zA-Z0-9_.]\+\)@$LOCAL_PATH/../../obj/local/armeabi/lib\1.so@g\"` \
 $NDK/platforms/$PLATFORMVER/arch-arm/usr/lib/libc.so \
@@ -86,13 +87,13 @@ $NDK/platforms/$PLATFORMVER/arch-arm/usr/lib/libz.so \
 -L$NDK/platforms/$PLATFORMVER/arch-arm/usr/lib \
 -L$LOCAL_PATH/../../obj/local/armeabi -Wl,--no-undefined -Wl,-z,noexecstack \
 -Wl,-rpath-link=$NDK/platforms/$PLATFORMVER/arch-arm/usr/lib -lsupc++ \
-$MISSING_LIB"
+$MISSING_LIB $LDFLAGS"
 
 #echo env CFLAGS=\""$CFLAGS"\" LDFLAGS=\""$LDFLAGS"\" "$@"
 
 env PATH=$NDK/toolchains/$GCCPREFIX-$GCCVER/prebuilt/$MYARCH/bin:$LOCAL_PATH:$PATH \
 CFLAGS="$CFLAGS" \
-CXXFLAGS="$CFLAGS" \
+CXXFLAGS="$CXXFLAGS $CFLAGS" \
 LDFLAGS="$LDFLAGS" \
 CC="$NDK/toolchains/$GCCPREFIX-$GCCVER/prebuilt/$MYARCH/bin/$GCCPREFIX-gcc" \
 CXX="$NDK/toolchains/$GCCPREFIX-$GCCVER/prebuilt/$MYARCH/bin/$GCCPREFIX-g++" \

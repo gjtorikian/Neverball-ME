@@ -97,13 +97,13 @@
 <string name="storage_custom">Вкажіть каталог</string>
 <string name="storage_commandline">Вкажіть параметри командного рядка</string>
 <string name="calibrate_touchscreen">Калібрування сенсорного екрану</string>
-<string name="calibrate_touchscreen_touch">Доторкнiться до всіх чотирьох країв екрану, потiм натисніть MENU</string>
+<string name="calibrate_touchscreen_touch">Доторкнiться до всіх країв екрану, потiм натисніть Назад/BACK</string>
 <string name="screenkb_custom_layout">Налаштування положення кнопок</string>
-<string name="screenkb_custom_layout_help">Провезiть по екрану, щоб додати кнопку, натисніть клавішу Меню, щоб скасувати останню кнопку</string>
+<string name="screenkb_custom_layout_help">Проведiть по екрану, щоб додати кнопку, натисніть Назад/BACK, щоб скасувати останню кнопку</string>
 <string name="rightclick_key">Фізична кнопка</string>
 <string name="pointandclick_showcreenunderfinger2">Наекранна лупа</string>
 <string name="video">Налаштування відео</string>
-<string name="video_smooth">Згладити відео</string>
+<string name="video_smooth">Лінійне сглажування відео</string>
 <string name="accel_veryslow">Дуже повільно</string>
 <string name="leftclick_timeout">Натискання з затримкою</string>
 <string name="leftclick_tap">Швидке натискання</string>
